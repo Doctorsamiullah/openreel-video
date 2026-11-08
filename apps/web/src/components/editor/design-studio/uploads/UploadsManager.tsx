@@ -1,8 +1,9 @@
 import React, { useRef, useState } from "react";
-import { Upload, Sparkles, Plus, Layers } from "@/icons/lucide-compat";
+import { Upload, Sparkles, Plus, Layers, ClipboardPaste } from "@/icons/lucide-compat";
 import { toast } from "../../../../stores/notification-store";
 import { DesignElement, DEFAULT_PHOTO_ADJUSTMENTS } from "../types";
 import { SAMPLE_ASSETS } from "./sample-assets";
+import { normalizeImageFile } from "../utils/image-utils";
 
 interface UploadsManagerProps {
   onInsertImage: (element: DesignElement) => void;
@@ -30,39 +31,65 @@ export const UploadsManager: React.FC<UploadsManagerProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const posterDeconstructInputRef = useRef<HTMLInputElement>(null);
 
-  const processFiles = (files: FileList | null, isDeconstructMode: boolean = false) => {
+  const processFiles = async (files: FileList | File[] | null, isDeconstructMode: boolean = false) => {
     if (!files || files.length === 0) return;
 
-    Array.from(files).forEach((file) => {
+    let processedCount = 0;
+    for (const file of Array.from(files)) {
       if (!file.type.startsWith("image/")) {
         toast.error(`"${file.name}" is not an image file`);
-        return;
+        continue;
       }
 
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const dataUrl = e.target?.result as string;
-        const img = new Image();
-        img.onload = () => {
-          const newUpload: UserUploadedImage = {
-            id: `upload-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-            name: file.name.replace(/\.[^/.]+$/, ""),
-            url: dataUrl,
-            width: img.naturalWidth || img.width || 600,
-            height: img.naturalHeight || img.height || 400,
-          };
-          setUserUploads((prev) => [newUpload, ...prev]);
-
-          if (isDeconstructMode && onDeconstructPoster) {
-            onDeconstructPoster(dataUrl, file.name);
-          } else {
-            toast.success(`Uploaded "${file.name}"`);
-          }
+      try {
+        const { dataUrl, width, height } = await normalizeImageFile(file);
+        const newUpload: UserUploadedImage = {
+          id: `upload-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          name: file.name.replace(/\.[^/.]+$/, ""),
+          url: dataUrl,
+          width,
+          height,
         };
-        img.src = dataUrl;
-      };
-      reader.readAsDataURL(file);
-    });
+        setUserUploads((prev) => [newUpload, ...prev]);
+        processedCount++;
+
+        if (isDeconstructMode && onDeconstructPoster) {
+          onDeconstructPoster(dataUrl, file.name);
+          break;
+        }
+      } catch (err) {
+        console.error(err);
+        toast.error(`Failed to process "${file.name}"`);
+      }
+    }
+
+    if (processedCount > 0 && !isDeconstructMode) {
+      toast.success(`Uploaded ${processedCount} photo${processedCount > 1 ? "s" : ""} (EXIF normalized)`);
+    }
+  };
+
+  const handlePasteClipboard = async () => {
+    try {
+      const items = await navigator.clipboard.read();
+      let foundImage = false;
+      for (const item of items) {
+        for (const type of item.types) {
+          if (type.startsWith("image/")) {
+            const blob = await item.getType(type);
+            const file = new File([blob], `pasted-${Date.now()}.${type.split("/")[1] || "png"}`, {
+              type,
+            });
+            await processFiles([file], false);
+            foundImage = true;
+          }
+        }
+      }
+      if (!foundImage) {
+        toast.info("No image found in clipboard");
+      }
+    } catch (err) {
+      toast.info("Tip: Press Ctrl+V directly on the canvas to paste an image");
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -172,9 +199,20 @@ export const UploadsManager: React.FC<UploadsManagerProps> = ({
           Upload photo or asset
         </span>
         <span className="text-[11px] text-fg-muted mt-0.5">
-          Drag and drop or browse files
+          Drag and drop or browse files (Supports multiple)
         </span>
       </div>
+
+      {/* Paste from Clipboard Button */}
+      <button
+        type="button"
+        onClick={handlePasteClipboard}
+        className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-bg-2 hover:bg-bg-3 p-2 text-xs font-semibold text-fg transition-all"
+        title="Paste copied photo directly from clipboard (Ctrl+V)"
+      >
+        <ClipboardPaste size={14} className="text-purple-400" />
+        <span>Paste Photo from Clipboard (Ctrl+V)</span>
+      </button>
 
       {/* User Uploads Grid */}
       {userUploads.length > 0 && (

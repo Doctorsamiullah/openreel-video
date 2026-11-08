@@ -20,10 +20,16 @@ import {
   Bold,
   Italic,
   Underline,
+  Link,
+  Unlink,
+  AlertTriangle,
+  LayoutGrid,
+  CheckCheck,
 } from "@/icons/lucide-compat";
 import { DesignElement, PhotoAdjustments } from "./types";
 import { PhotoFilters } from "./PhotoFilters";
 import { toast } from "../../../stores/notification-store";
+import { calculateFitFontSize } from "./utils/layout-engine";
 
 interface ElementInspectorProps {
   element: DesignElement | null;
@@ -40,6 +46,8 @@ interface ElementInspectorProps {
   onUploadPhoto?: (file: File) => void;
   onStartBlank?: () => void;
   onFitInView?: () => void;
+  onAutoLayout?: () => void;
+  onFitAllContent?: () => void;
   onApplyToAllPhotos?: (adjustments: PhotoAdjustments) => void;
 }
 
@@ -71,6 +79,8 @@ export const ElementInspector: React.FC<ElementInspectorProps> = ({
   onUploadPhoto,
   onStartBlank,
   onFitInView,
+  onAutoLayout,
+  onFitAllContent,
   onApplyToAllPhotos,
 }) => {
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -199,6 +209,32 @@ export const ElementInspector: React.FC<ElementInspectorProps> = ({
               <span>Start Blank Canvas (No Template)</span>
             </button>
           )}
+
+          {/* Auto Layout & Fit All Content */}
+          <div className="grid grid-cols-2 gap-1.5 pt-1">
+            {onAutoLayout && (
+              <button
+                type="button"
+                onClick={onAutoLayout}
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 px-2 py-2 text-xs font-semibold text-indigo-400 transition-all"
+                title="Arrange all photos and text in clean grid/collage"
+              >
+                <LayoutGrid size={13} />
+                <span>Auto Layout</span>
+              </button>
+            )}
+            {onFitAllContent && (
+              <button
+                type="button"
+                onClick={onFitAllContent}
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-2 text-xs font-semibold text-emerald-400 transition-all"
+                title="Ensure all text & photos are visible without clipping"
+              >
+                <CheckCheck size={13} />
+                <span>Fit Content</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Canvas Background Color */}
@@ -376,6 +412,52 @@ export const ElementInspector: React.FC<ElementInspectorProps> = ({
               className="w-full rounded-lg border border-border bg-bg-2 p-2.5 text-xs text-fg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
             />
           </div>
+
+          {/* Live Text Overflow Warning & Auto-Fix */}
+          {(() => {
+            const lines = (element.text || "").split("\n");
+            const lineHeight = (element.fontSize || 32) * (element.lineHeight || 1.25);
+            const calculatedHeight = Math.ceil(lines.length * lineHeight);
+            const isTextOverflowing = calculatedHeight > (element.height || 40);
+
+            if (!isTextOverflowing) return null;
+
+            return (
+              <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-2.5 space-y-2 animate-in fade-in">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-amber-400">
+                  <AlertTriangle size={14} className="shrink-0" />
+                  <span>Text overflowing box by {calculatedHeight - element.height}px</span>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => onUpdateElement({ height: calculatedHeight + 8 })}
+                    className="flex items-center justify-center gap-1 rounded-lg border border-amber-500/40 bg-amber-500/20 hover:bg-amber-500/30 p-1.5 text-[11px] font-bold text-amber-300 transition-all"
+                  >
+                    <Maximize2 size={11} />
+                    <span>Expand Box Height</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const optimalFont = calculateFitFontSize(
+                        element.text || "",
+                        element.width,
+                        element.height,
+                        element.fontSize
+                      );
+                      onUpdateElement({ fontSize: optimalFont });
+                      toast.info(`Adjusted font to ${optimalFont}px to fit box`);
+                    }}
+                    className="flex items-center justify-center gap-1 rounded-lg border border-amber-500/40 bg-amber-500/20 hover:bg-amber-500/30 p-1.5 text-[11px] font-bold text-amber-300 transition-all"
+                  >
+                    <CheckCheck size={11} />
+                    <span>Shrink Font to Fit</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
 
           <div>
             <label className="text-xs font-semibold text-fg-2 block mb-1">
@@ -656,14 +738,91 @@ export const ElementInspector: React.FC<ElementInspectorProps> = ({
               element.adjustments && onApplyToAllPhotos && onApplyToAllPhotos(element.adjustments)
             }
           />
+
+          {/* Slot Alignment Mode (Autofit in Slot) */}
+          <div className="rounded-xl border border-border bg-bg-2 p-3 space-y-2">
+            <span className="text-xs font-bold text-fg block">Autofit Slot Mode</span>
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  onUpdateElement({ fitMode: "fill" });
+                  toast.info("Slot mode: Fill (cover entire frame)");
+                }}
+                className={`flex items-center justify-center gap-1 rounded-lg border p-1.5 text-xs font-semibold transition-all ${
+                  element.fitMode === "fill" || !element.fitMode
+                    ? "border-purple-500 bg-purple-500/20 text-purple-400 font-bold"
+                    : "border-border bg-bg-3 text-fg-2 hover:bg-bg-4"
+                }`}
+              >
+                <Maximize2 size={12} />
+                <span>Fill Slot (Cover)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onUpdateElement({ fitMode: "fit" });
+                  toast.info("Slot mode: Fit (contained inside frame)");
+                }}
+                className={`flex items-center justify-center gap-1 rounded-lg border p-1.5 text-xs font-semibold transition-all ${
+                  element.fitMode === "fit"
+                    ? "border-purple-500 bg-purple-500/20 text-purple-400 font-bold"
+                    : "border-border bg-bg-3 text-fg-2 hover:bg-bg-4"
+                }`}
+              >
+                <AlignCenter size={12} />
+                <span>Fit Slot (Contain)</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Photo Rounded Corners */}
+          <div className="rounded-xl border border-border bg-bg-2 p-3 space-y-1.5">
+            <div className="flex justify-between text-xs font-medium">
+              <span className="text-fg-2">Rounded Corners</span>
+              <span className="text-fg-muted font-mono">{element.borderRadius || 0}px</span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="160"
+              value={element.borderRadius || 0}
+              onChange={(e) => onUpdateElement({ borderRadius: parseInt(e.target.value, 10) })}
+              className="w-full h-1.5 bg-bg-3 rounded-lg appearance-none cursor-pointer accent-purple-500"
+            />
+          </div>
         </div>
       )}
 
       {/* ── Precise Spatial Coordinates & Dimensions (Photoshop Style) ── */}
       <div className="space-y-3 pt-3 border-t border-border">
-        <span className="text-xs font-bold uppercase tracking-wider text-fg-3 block">
-          Spatial Transform (Pixels)
-        </span>
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold uppercase tracking-wider text-fg-3 block">
+            Spatial Transform
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              const nextLocked = !element.lockAspectRatio;
+              const ratio = element.width / Math.max(element.height, 1);
+              onUpdateElement({
+                lockAspectRatio: nextLocked,
+                aspectRatio: ratio,
+              });
+              toast.info(nextLocked ? "Aspect ratio locked" : "Aspect ratio unlocked");
+            }}
+            className={`flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-semibold transition-colors ${
+              element.lockAspectRatio
+                ? "bg-purple-500/20 text-purple-400"
+                : "text-fg-muted hover:text-fg hover:bg-bg-2"
+            }`}
+            title={element.lockAspectRatio ? "Aspect ratio is locked" : "Lock aspect ratio"}
+          >
+            {element.lockAspectRatio ? <Link size={12} /> : <Unlink size={12} />}
+            <span>{element.lockAspectRatio ? "Ratio Locked" : "Ratio Free"}</span>
+          </button>
+        </div>
+
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div>
             <label className="text-fg-muted font-mono block mb-1">X Position</label>
@@ -689,7 +848,15 @@ export const ElementInspector: React.FC<ElementInspectorProps> = ({
               type="number"
               min="10"
               value={element.width}
-              onChange={(e) => onUpdateElement({ width: Number(e.target.value) })}
+              onChange={(e) => {
+                const w = Math.max(10, Number(e.target.value));
+                if (element.lockAspectRatio) {
+                  const ratio = element.aspectRatio || element.width / Math.max(element.height, 1);
+                  onUpdateElement({ width: w, height: Math.max(10, Math.round(w / ratio)) });
+                } else {
+                  onUpdateElement({ width: w });
+                }
+              }}
               className="w-full rounded-lg border border-border bg-bg-2 p-1.5 font-mono text-fg"
             />
           </div>
@@ -699,7 +866,15 @@ export const ElementInspector: React.FC<ElementInspectorProps> = ({
               type="number"
               min="10"
               value={element.height}
-              onChange={(e) => onUpdateElement({ height: Number(e.target.value) })}
+              onChange={(e) => {
+                const h = Math.max(10, Number(e.target.value));
+                if (element.lockAspectRatio) {
+                  const ratio = element.aspectRatio || element.width / Math.max(element.height, 1);
+                  onUpdateElement({ height: h, width: Math.max(10, Math.round(h * ratio)) });
+                } else {
+                  onUpdateElement({ height: h });
+                }
+              }}
               className="w-full rounded-lg border border-border bg-bg-2 p-1.5 font-mono text-fg"
             />
           </div>

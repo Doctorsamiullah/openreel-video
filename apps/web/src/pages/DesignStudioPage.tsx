@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useProjectStore } from "../stores/project-store";
 import { toast } from "../stores/notification-store";
 import { useRouter } from "../hooks/use-router";
@@ -12,6 +12,8 @@ import {
   PageAnimationConfig,
   ElementAnimationConfig,
   PhotoAdjustments,
+  DEFAULT_PHOTO_ADJUSTMENTS,
+  ExportOptions,
 } from "../components/editor/design-studio/types";
 import { MEDICAL_POSTER_TEMPLATE } from "../components/editor/design-studio/templates/medical-poster-template";
 import { deconstructPosterImage } from "../components/editor/design-studio/deconstruction/poster-deconstructor";
@@ -19,6 +21,9 @@ import { LeftSidebar, LeftTabId } from "../components/editor/design-studio/LeftS
 import { MainWorkspace } from "../components/editor/design-studio/MainWorkspace";
 import { ElementInspector } from "../components/editor/design-studio/ElementInspector";
 import { DesignNavbar } from "../components/editor/design-studio/DesignNavbar";
+import { ExportModal } from "../components/editor/design-studio/ExportModal";
+import { normalizeImageFile, generatePdfBlobFromCanvas } from "../components/editor/design-studio/utils/image-utils";
+import { computeAutoLayout, fitAllContentToCanvas } from "../components/editor/design-studio/utils/layout-engine";
 
 export const DesignStudioPage: React.FC = () => {
   const { navigate } = useRouter();
@@ -37,6 +42,9 @@ export const DesignStudioPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<LeftTabId>("templates");
   const [zoomLevel, setZoomLevel] = useState<number>(36);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
+  const [isSaved, setIsSaved] = useState<boolean>(true);
+  const isInitialMount = useRef<boolean>(true);
 
   // Canvas Undo / Redo History Stack
   const [history, setHistory] = useState<DesignElement[][]>([
@@ -73,7 +81,18 @@ export const DesignStudioPage: React.FC = () => {
     }
   }, [history, historyIndex]);
 
-  // Global Keyboard Shortcuts (Ctrl+Z, Ctrl+Y, Delete)
+  // Delete element
+  const handleDeleteElement = useCallback((id: string) => {
+    setElements((prev) => {
+      const next = prev.filter((el) => el.id !== id);
+      pushCanvasHistory(next);
+      return next;
+    });
+    setSelectedId((current) => (current === id ? null : current));
+    toast.info("Deleted layer");
+  }, [pushCanvasHistory]);
+
+  // Global Keyboard Shortcuts (Ctrl+Z, Ctrl+Y, Delete / Backspace)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
@@ -89,12 +108,87 @@ export const DesignStudioPage: React.FC = () => {
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
         e.preventDefault();
         handleRedo();
+      } else if (e.key === "Delete" || e.key === "Backspace") {
+        if (selectedId) {
+          e.preventDefault();
+          handleDeleteElement(selectedId);
+        }
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleUndo, handleRedo]);
+  }, [handleUndo, handleRedo, selectedId, handleDeleteElement]);
+
+  // Restore saved project state from LocalStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("sami_design_studio_state");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.elements && Array.isArray(parsed.elements) && parsed.elements.length > 0) {
+          setElements(parsed.elements);
+          setHistory([parsed.elements]);
+          setHistoryIndex(0);
+        }
+        if (parsed.canvasBg) setCanvasBg(parsed.canvasBg);
+        if (parsed.documentTitle) setDocumentTitle(parsed.documentTitle);
+        if (parsed.sizePreset && SIZE_PRESETS[parsed.sizePreset as DesignSizePreset]) {
+          setSizePreset(parsed.sizePreset as DesignSizePreset);
+        }
+      }
+    } catch (e) {
+      console.warn("Could not load saved studio design", e);
+    }
+  }, []);
+
+  // Continuous Autosave to LocalStorage (Debounced 1.5s)
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    setIsSaved(false);
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem(
+          "sami_design_studio_state",
+          JSON.stringify({
+            documentTitle,
+            sizePreset,
+            canvasBg,
+            elements,
+            lastSavedAt: Date.now(),
+          })
+        );
+        setIsSaved(true);
+      } catch (e) {
+        console.warn("Autosave quota exceeded", e);
+      }
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [documentTitle, sizePreset, canvasBg, elements]);
+
+  // Manual Save Action
+  const handleManualSave = useCallback(() => {
+    try {
+      localStorage.setItem(
+        "sami_design_studio_state",
+        JSON.stringify({
+          documentTitle,
+          sizePreset,
+          canvasBg,
+          elements,
+          lastSavedAt: Date.now(),
+        })
+      );
+      setIsSaved(true);
+      toast.success("Project saved to local storage");
+    } catch (e) {
+      toast.error("Failed to save project");
+    }
+  }, [documentTitle, sizePreset, canvasBg, elements]);
 
   // Canva Animation State
   const [pageAnimation, setPageAnimation] = useState<PageAnimationConfig>({
@@ -307,17 +401,6 @@ export const DesignStudioPage: React.FC = () => {
     toast.info("Duplicated layer");
   };
 
-  // Delete element
-  const handleDeleteElement = (id: string) => {
-    setElements((prev) => {
-      const next = prev.filter((el) => el.id !== id);
-      pushCanvasHistory(next);
-      return next;
-    });
-    if (selectedId === id) setSelectedId(null);
-    toast.info("Deleted layer");
-  };
-
   // Toggle Lock
   const handleToggleLock = (id: string) => {
     setElements((prev) =>
@@ -396,47 +479,126 @@ export const DesignStudioPage: React.FC = () => {
     toast.success(`Applied ${config.preset} animation to element`);
   };
 
-  // Upload photo directly onto canvas
-  const handleUploadDirectPhoto = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const src = e.target?.result as string;
-      const img = new Image();
-      img.onload = () => {
-        const maxW = dimensions.width * 0.6;
-        const maxH = dimensions.height * 0.6;
-        let w = img.width || 400;
-        let h = img.height || 400;
-        const scale = Math.min(maxW / w, maxH / h, 1);
-        w = Math.round(w * scale);
-        h = Math.round(h * scale);
+  // Upload multiple photos onto canvas (with automatic EXIF rotation fix)
+  const handleUploadMultipleFiles = useCallback(
+    async (files: File[]) => {
+      if (!files || files.length === 0) return;
+      setIsProcessing(true);
+      try {
+        const newElements: DesignElement[] = [];
+        const maxW = dimensions.width * 0.55;
+        const maxH = dimensions.height * 0.55;
 
-        const newEl: DesignElement = {
-          id: `image-${Date.now()}`,
-          type: "image",
-          src,
-          fileName: file.name,
-          x: Math.round((dimensions.width - w) / 2),
-          y: Math.round((dimensions.height - h) / 2),
-          width: w,
-          height: h,
-          rotation: 0,
-          opacity: 1,
-          zIndex: Date.now(),
-        };
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          const { dataUrl, width: naturalW, height: naturalH } = await normalizeImageFile(file);
+
+          const scale = Math.min(maxW / naturalW, maxH / naturalH, 1);
+          const w = Math.round(naturalW * scale);
+          const h = Math.round(naturalH * scale);
+          const stagger = (i % 6) * 28;
+
+          const newEl: DesignElement = {
+            id: `image-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`,
+            type: "image",
+            src: dataUrl,
+            fileName: file.name,
+            x: Math.round((dimensions.width - w) / 2 + stagger),
+            y: Math.round((dimensions.height - h) / 2 + stagger),
+            width: w,
+            height: h,
+            originalWidth: naturalW,
+            originalHeight: naturalH,
+            rotation: 0,
+            opacity: 1,
+            zIndex: Date.now() + i,
+            lockAspectRatio: true,
+            aspectRatio: w / Math.max(h, 1),
+            adjustments: { ...DEFAULT_PHOTO_ADJUSTMENTS },
+          };
+          newElements.push(newEl);
+        }
 
         setElements((prev) => {
-          const next = [...prev, newEl];
+          const next = [...prev, ...newElements];
           pushCanvasHistory(next);
           return next;
         });
-        setSelectedId(newEl.id);
-        toast.success(`Photo "${file.name}" placed on canvas!`);
-      };
-      img.src = src;
+
+        if (newElements.length > 0) {
+          setSelectedId(newElements[newElements.length - 1].id);
+        }
+        toast.success(
+          `Uploaded ${newElements.length} photo${newElements.length > 1 ? "s" : ""} (EXIF normalized)`
+        );
+      } catch (err) {
+        console.error(err);
+        toast.error("Failed to upload photos");
+      } finally {
+        setIsProcessing(false);
+      }
+    },
+    [dimensions, pushCanvasHistory]
+  );
+
+  // Single direct photo upload wrapper
+  const handleUploadDirectPhoto = useCallback(
+    (file: File) => {
+      handleUploadMultipleFiles([file]);
+    },
+    [handleUploadMultipleFiles]
+  );
+
+  // Global Clipboard Paste (Ctrl+V) for Photos
+  useEffect(() => {
+    const handlePaste = async (e: ClipboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      const imageFiles: File[] = [];
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith("image/")) {
+          const file = items[i].getAsFile();
+          if (file) imageFiles.push(file);
+        }
+      }
+
+      if (imageFiles.length > 0) {
+        e.preventDefault();
+        await handleUploadMultipleFiles(imageFiles);
+      }
     };
-    reader.readAsDataURL(file);
-  };
+
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, [handleUploadMultipleFiles]);
+
+  // Autofit WITHOUT Template: Auto Layout (Grid / Collage)
+  const handleAutoLayout = useCallback(() => {
+    const updated = computeAutoLayout(elements, dimensions);
+    setElements(updated);
+    pushCanvasHistory(updated);
+    toast.success("Auto Layout applied: organized in balanced grid with even margins & zero overlap");
+  }, [elements, dimensions, pushCanvasHistory]);
+
+  // Visibility Guard & 1-Click Fix All Content
+  const handleFitAllContent = useCallback(() => {
+    const { elements: updated, adjustedCount } = fitAllContentToCanvas(elements, dimensions);
+    setElements(updated);
+    pushCanvasHistory(updated);
+    const targetZoom = Math.min(Math.round((560 / dimensions.height) * 100), 100);
+    setZoomLevel(Math.max(25, targetZoom));
+    if (adjustedCount > 0) {
+      toast.success(
+        `Fit All Content: expanded overflowing boxes & bounded within canvas safe area (${adjustedCount} elements adjusted)`
+      );
+    } else {
+      toast.info("All content is already fully visible within canvas safe margins");
+    }
+  }, [elements, dimensions, pushCanvasHistory]);
 
   // Start blank canvas (without template)
   const handleStartBlankCanvas = () => {
@@ -481,15 +643,17 @@ export const DesignStudioPage: React.FC = () => {
   };
 
   // High Resolution Canvas Renderer (strips all selection guides/handles)
-  const renderFullCanvasAsync = async (offscreen: HTMLCanvasElement) => {
-    offscreen.width = dimensions.width;
-    offscreen.height = dimensions.height;
+  const renderFullCanvasAsync = async (offscreen: HTMLCanvasElement, scale: number = 1) => {
+    offscreen.width = Math.round(dimensions.width * scale);
+    offscreen.height = Math.round(dimensions.height * scale);
     const ctx = offscreen.getContext("2d");
     if (!ctx) return;
 
+    ctx.scale(scale, scale);
+
     // Background
     ctx.fillStyle = canvasBg;
-    ctx.fillRect(0, 0, offscreen.width, offscreen.height);
+    ctx.fillRect(0, 0, dimensions.width, dimensions.height);
 
     // Preload image assets
     const imageElements = elements.filter((el) => el.type === "image" && el.src);
@@ -594,20 +758,40 @@ export const DesignStudioPage: React.FC = () => {
         if (el.textShadowColor) {
           ctx.shadowColor = el.textShadowColor;
           ctx.shadowBlur = el.textShadowBlur || 8;
+          ctx.shadowOffsetX = el.textShadowOffsetX || 2;
+          ctx.shadowOffsetY = el.textShadowOffsetY || 2;
         }
 
-        // Stroke
-        if (el.strokeColor && el.strokeWidth) {
-          ctx.strokeStyle = el.strokeColor;
-          ctx.lineWidth = el.strokeWidth;
-          lines.forEach((line, index) => {
-            ctx.strokeText(line, textX, startY + index * lineHeight);
-          });
-        }
-
-        ctx.fillStyle = el.fill || "#ffffff";
+        const isJustified = el.textAlign === "justify";
         lines.forEach((line, index) => {
-          ctx.fillText(line, textX, startY + index * lineHeight);
+          const lineY = startY + index * lineHeight;
+          const isLastLine = index === lines.length - 1;
+          const words = line.trim().split(/\s+/);
+
+          if (isJustified && !isLastLine && words.length > 1) {
+            ctx.textAlign = "left";
+            const totalWordWidth = words.reduce((sum, w) => sum + ctx.measureText(w).width, 0);
+            const gap = Math.max(0, (el.width - totalWordWidth) / (words.length - 1));
+            let curX = -el.width / 2;
+            words.forEach((w) => {
+              if (el.strokeColor && el.strokeWidth) {
+                ctx.strokeStyle = el.strokeColor;
+                ctx.lineWidth = el.strokeWidth;
+                ctx.strokeText(w, curX, lineY);
+              }
+              ctx.fillStyle = el.fill || "#ffffff";
+              ctx.fillText(w, curX, lineY);
+              curX += ctx.measureText(w).width + gap;
+            });
+          } else {
+            if (el.strokeColor && el.strokeWidth) {
+              ctx.strokeStyle = el.strokeColor;
+              ctx.lineWidth = el.strokeWidth;
+              ctx.strokeText(line, textX, lineY);
+            }
+            ctx.fillStyle = el.fill || "#ffffff";
+            ctx.fillText(line, textX, lineY);
+          }
         });
       } else if (el.type === "image" && el.src) {
         const img = loadedImages.get(el.src);
@@ -620,6 +804,10 @@ export const DesignStudioPage: React.FC = () => {
             const s = 1 + (adj.saturation || 0) / 100;
             const bl = adj.blur || 0;
             filterStr += `brightness(${b}) contrast(${c}) saturate(${s}) blur(${bl}px) `;
+            if (adj.exposure) {
+              const exp = 1 + (adj.exposure || 0) / 100;
+              filterStr += `brightness(${exp}) `;
+            }
             if (adj.hueRotate) {
               filterStr += `hue-rotate(${adj.hueRotate}deg) `;
             }
@@ -628,6 +816,9 @@ export const DesignStudioPage: React.FC = () => {
             }
             if (adj.grayscale) {
               filterStr += `grayscale(${adj.grayscale}%) `;
+            }
+            if (adj.sepia) {
+              filterStr += `sepia(${adj.sepia}%) `;
             }
           }
 
@@ -645,8 +836,38 @@ export const DesignStudioPage: React.FC = () => {
             ctx.filter = filterStr.trim();
           }
 
-          ctx.drawImage(img, -el.width / 2, -el.height / 2, el.width, el.height);
+          const hasRadius = el.borderRadius && el.borderRadius > 0;
+          if (hasRadius) {
+            ctx.save();
+            ctx.beginPath();
+            if (typeof ctx.roundRect === "function") {
+              ctx.roundRect(-el.width / 2, -el.height / 2, el.width, el.height, el.borderRadius || 0);
+            } else {
+              ctx.rect(-el.width / 2, -el.height / 2, el.width, el.height);
+            }
+            ctx.clip();
+          }
+
+          if (el.crop) {
+            ctx.drawImage(
+              img,
+              el.crop.x,
+              el.crop.y,
+              el.crop.width,
+              el.crop.height,
+              -el.width / 2,
+              -el.height / 2,
+              el.width,
+              el.height
+            );
+          } else {
+            ctx.drawImage(img, -el.width / 2, -el.height / 2, el.width, el.height);
+          }
           ctx.filter = "none";
+
+          if (hasRadius) {
+            ctx.restore();
+          }
 
           if (adj && adj.colorTint && adj.colorTintIntensity) {
             ctx.save();
@@ -663,24 +884,50 @@ export const DesignStudioPage: React.FC = () => {
     });
   };
 
-  // High Resolution Export Pipeline (strips all selection guides/handles)
-  const handleDownloadPNG = async () => {
+  // High Resolution Multi-Format Export Pipeline (PNG, JPG, PDF)
+  const handleExport = async (options: ExportOptions) => {
     setIsProcessing(true);
     try {
       const offscreen = document.createElement("canvas");
-      await renderFullCanvasAsync(offscreen);
+      await renderFullCanvasAsync(offscreen, options.scale || 1);
 
-      const link = document.createElement("a");
-      link.download = `${documentTitle.replace(/\s+/g, "-").toLowerCase()}.png`;
-      link.href = offscreen.toDataURL("image/png");
-      link.click();
-      toast.success("Downloaded high-resolution PNG");
+      const baseName = documentTitle.replace(/\s+/g, "-").toLowerCase();
+      if (options.format === "pdf") {
+        const pdfBlob = generatePdfBlobFromCanvas(offscreen, options.quality || 0.95);
+        const url = URL.createObjectURL(pdfBlob);
+        const link = document.createElement("a");
+        link.download = `${baseName}.pdf`;
+        link.href = url;
+        link.click();
+        URL.revokeObjectURL(url);
+        toast.success(`Exported high-resolution PDF (${options.scale}x scale)`);
+      } else if (options.format === "jpg") {
+        const link = document.createElement("a");
+        link.download = `${baseName}.jpg`;
+        link.href = offscreen.toDataURL("image/jpeg", options.quality || 0.92);
+        link.click();
+        toast.success(
+          `Exported JPEG (${Math.round((options.quality || 0.92) * 100)}% quality, ${options.scale}x scale)`
+        );
+      } else {
+        const link = document.createElement("a");
+        link.download = `${baseName}.png`;
+        link.href = offscreen.toDataURL("image/png");
+        link.click();
+        toast.success(`Exported high-resolution PNG (${options.scale}x scale)`);
+      }
+      setIsExportModalOpen(false);
     } catch (err) {
       console.error(err);
-      toast.error("Failed to export PNG");
+      toast.error("Failed to export design");
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  // Quick Download PNG Action (Fallback)
+  const handleDownloadPNG = async () => {
+    await handleExport({ format: "png", quality: 1.0, scale: 1 });
   };
 
   // Add to Video Timeline Pipeline (Supports both static snapshot and animated motion scene)
@@ -692,7 +939,7 @@ export const DesignStudioPage: React.FC = () => {
       }
 
       const offscreen = document.createElement("canvas");
-      await renderFullCanvasAsync(offscreen);
+      await renderFullCanvasAsync(offscreen, 1);
 
       const blob = await new Promise<Blob | null>((resolve) =>
         offscreen.toBlob((b) => resolve(b), "image/png", 1.0)
@@ -727,12 +974,15 @@ export const DesignStudioPage: React.FC = () => {
         onSizePresetChange={setSizePreset}
         onNavigate={navigate}
         onDownload={handleDownloadPNG}
+        onOpenExportModal={() => setIsExportModalOpen(true)}
         onSaveToTimeline={handleSaveToTimeline}
         isProcessing={isProcessing}
         canUndo={historyIndex > 0}
         canRedo={historyIndex < history.length - 1}
         onUndo={handleUndo}
         onRedo={handleRedo}
+        onManualSave={handleManualSave}
+        isSaved={isSaved}
       />
 
       {/* ── Main Workspace Body ── */}
@@ -791,8 +1041,11 @@ export const DesignStudioPage: React.FC = () => {
           zoomLevel={zoomLevel}
           onZoomChange={setZoomLevel}
           onUploadPhoto={handleUploadDirectPhoto}
+          onUploadMultiplePhotos={handleUploadMultipleFiles}
           onStartBlank={handleStartBlankCanvas}
           onFitInView={handleFitInView}
+          onAutoLayout={handleAutoLayout}
+          onFitAllContent={handleFitAllContent}
           currentTime={currentTime}
           pageAnimation={pageAnimation}
           isPlayingAnimation={isPlayingAnimation}
@@ -820,9 +1073,22 @@ export const DesignStudioPage: React.FC = () => {
           onUploadPhoto={handleUploadDirectPhoto}
           onStartBlank={handleStartBlankCanvas}
           onFitInView={handleFitInView}
+          onAutoLayout={handleAutoLayout}
+          onFitAllContent={handleFitAllContent}
           onApplyToAllPhotos={handleApplyToAllPhotos}
         />
       </div>
+
+      {/* ── Multi-Format Export Modal ── */}
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        documentTitle={documentTitle}
+        dimensions={dimensions}
+        onExport={handleExport}
+        onSaveToTimeline={handleSaveToTimeline}
+        isProcessing={isProcessing}
+      />
     </div>
   );
 };

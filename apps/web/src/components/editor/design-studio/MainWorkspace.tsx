@@ -17,6 +17,8 @@ import {
   Eye,
   Trash2,
   AlignCenter,
+  LayoutGrid,
+  CheckCheck,
 } from "@/icons/lucide-compat";
 import { DesignElement, CanvasDimensions, PageAnimationConfig } from "./types";
 import { FloatingActionBar } from "./FloatingActionBar";
@@ -42,8 +44,11 @@ interface MainWorkspaceProps {
   zoomLevel: number;
   onZoomChange: (zoom: number) => void;
   onUploadPhoto?: (file: File) => void;
+  onUploadMultiplePhotos?: (files: File[]) => void;
   onStartBlank?: () => void;
   onFitInView?: () => void;
+  onAutoLayout?: () => void;
+  onFitAllContent?: () => void;
 
   // Animation playback
   currentTime?: number;
@@ -75,8 +80,11 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   zoomLevel,
   onZoomChange,
   onUploadPhoto,
+  onUploadMultiplePhotos,
   onStartBlank,
   onFitInView,
+  onAutoLayout,
+  onFitAllContent,
   currentTime = 0,
   pageAnimation = { preset: "none", duration: 5.0 },
   isPlayingAnimation = false,
@@ -219,9 +227,6 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
         } else if (el.textAlign === "right") {
           textX = el.width / 2;
           ctx.textAlign = "right";
-        } else if (el.textAlign === "justify") {
-          textX = -el.width / 2;
-          ctx.textAlign = "left";
         } else {
           textX = -el.width / 2;
           ctx.textAlign = "left";
@@ -242,23 +247,43 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
         if (el.textShadowColor) {
           ctx.shadowColor = el.textShadowColor;
           ctx.shadowBlur = el.textShadowBlur || 8;
+          ctx.shadowOffsetX = el.textShadowOffsetX || 2;
+          ctx.shadowOffsetY = el.textShadowOffsetY || 2;
         }
 
-        // Text Stroke / Outline
-        if (el.strokeColor && el.strokeWidth) {
-          ctx.strokeStyle = el.strokeColor;
-          ctx.lineWidth = el.strokeWidth;
-          lines.forEach((line, index) => {
-            ctx.strokeText(line, textX, startY + index * lineHeight);
-          });
-        }
-
-        ctx.fillStyle = el.fill || "#ffffff";
+        const isJustified = el.textAlign === "justify";
         lines.forEach((line, index) => {
-          ctx.fillText(line, textX, startY + index * lineHeight);
+          const lineY = startY + index * lineHeight;
+          const isLastLine = index === lines.length - 1;
+          const words = line.trim().split(/\s+/);
+
+          if (isJustified && !isLastLine && words.length > 1) {
+            ctx.textAlign = "left";
+            const totalWordWidth = words.reduce((sum, w) => sum + ctx.measureText(w).width, 0);
+            const gap = Math.max(0, (el.width - totalWordWidth) / (words.length - 1));
+            let curX = -el.width / 2;
+            words.forEach((w) => {
+              if (el.strokeColor && el.strokeWidth) {
+                ctx.strokeStyle = el.strokeColor;
+                ctx.lineWidth = el.strokeWidth;
+                ctx.strokeText(w, curX, lineY);
+              }
+              ctx.fillStyle = el.fill || "#ffffff";
+              ctx.fillText(w, curX, lineY);
+              curX += ctx.measureText(w).width + gap;
+            });
+          } else {
+            if (el.strokeColor && el.strokeWidth) {
+              ctx.strokeStyle = el.strokeColor;
+              ctx.lineWidth = el.strokeWidth;
+              ctx.strokeText(line, textX, lineY);
+            }
+            ctx.fillStyle = el.fill || "#ffffff";
+            ctx.fillText(line, textX, lineY);
+          }
         });
       }
-      // Render Image with Photoshop filters, Hue Shift & Color Wash
+      // Render Image with Photoshop filters, Rounded Corners, Hue Shift & Color Wash
       else if (el.type === "image" && el.src) {
         const img = imageCacheRef.current.get(el.src);
         if (img && img.complete) {
@@ -272,7 +297,10 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             const bl = adj.blur || 0;
             filterStr += `brightness(${b}) contrast(${c}) saturate(${s}) blur(${bl}px) `;
 
-            // Hue Rotate Color Shift (User Request)
+            if (adj.exposure) {
+              const exp = 1 + (adj.exposure || 0) / 100;
+              filterStr += `brightness(${exp}) `;
+            }
             if (adj.hueRotate) {
               filterStr += `hue-rotate(${adj.hueRotate}deg) `;
             }
@@ -281,6 +309,9 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }
             if (adj.grayscale) {
               filterStr += `grayscale(${adj.grayscale}%) `;
+            }
+            if (adj.sepia) {
+              filterStr += `sepia(${adj.sepia}%) `;
             }
           }
 
@@ -299,8 +330,39 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             ctx.filter = filterStr.trim();
           }
 
-          ctx.drawImage(img, -el.width / 2, -el.height / 2, el.width, el.height);
+          // Rounded Corners Clipping
+          const hasRadius = el.borderRadius && el.borderRadius > 0;
+          if (hasRadius) {
+            ctx.save();
+            ctx.beginPath();
+            if (typeof ctx.roundRect === "function") {
+              ctx.roundRect(-el.width / 2, -el.height / 2, el.width, el.height, el.borderRadius || 0);
+            } else {
+              ctx.rect(-el.width / 2, -el.height / 2, el.width, el.height);
+            }
+            ctx.clip();
+          }
+
+          if (el.crop) {
+            ctx.drawImage(
+              img,
+              el.crop.x,
+              el.crop.y,
+              el.crop.width,
+              el.crop.height,
+              -el.width / 2,
+              -el.height / 2,
+              el.width,
+              el.height
+            );
+          } else {
+            ctx.drawImage(img, -el.width / 2, -el.height / 2, el.width, el.height);
+          }
           ctx.filter = "none";
+
+          if (hasRadius) {
+            ctx.restore();
+          }
 
           // Color Wash / Tint Overlay (User Request)
           if (adj && adj.colorTint && adj.colorTintIntensity) {
@@ -457,6 +519,22 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }
           }
 
+          // Aspect ratio lock (when lockAspectRatio is true or Shift key is held)
+          const isRatioLocked = selectedElement.lockAspectRatio || e.shiftKey;
+          if (
+            isRatioLocked &&
+            (activeHandle === "nw" ||
+              activeHandle === "ne" ||
+              activeHandle === "se" ||
+              activeHandle === "sw")
+          ) {
+            const ratio = selectedElement.aspectRatio || elemW / Math.max(elemH, 1);
+            newH = Math.round(newW / ratio);
+            if (activeHandle.includes("n")) {
+              newY = elemY + (elemH - newH);
+            }
+          }
+
           onUpdateElement(selectedElement.id, {
             x: Math.round(newX),
             y: Math.round(newY),
@@ -531,15 +609,21 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
 
   return (
     <div className="relative flex flex-1 flex-col overflow-hidden bg-bg-3 select-none">
-      {/* Hidden File Input for Direct Photo Upload */}
+      {/* Hidden File Input for Direct Photo Upload (Supports Multiple Files) */}
       <input
         type="file"
         ref={fileInputRef}
         onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file && onUploadPhoto) onUploadPhoto(file);
+          if (!e.target.files || e.target.files.length === 0) return;
+          const fileArr = Array.from(e.target.files);
+          if (onUploadMultiplePhotos) {
+            onUploadMultiplePhotos(fileArr);
+          } else if (onUploadPhoto && fileArr[0]) {
+            onUploadPhoto(fileArr[0]);
+          }
         }}
         accept="image/*"
+        multiple
         className="hidden"
       />
 
@@ -603,6 +687,32 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               <span>Center</span>
             </button>
 
+            {/* Auto Layout (Collage / Grid) */}
+            {onAutoLayout && (
+              <button
+                type="button"
+                onClick={onAutoLayout}
+                className="flex items-center gap-1 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-2 py-1 text-xs font-semibold text-indigo-400 hover:bg-indigo-500/20 transition-all"
+                title="Arrange all elements in clean grid/collage without overlapping"
+              >
+                <LayoutGrid size={12} />
+                <span>Auto Layout</span>
+              </button>
+            )}
+
+            {/* Fit All Content */}
+            {onFitAllContent && (
+              <button
+                type="button"
+                onClick={onFitAllContent}
+                className="flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/20 transition-all"
+                title="Fix overflows & ensure all content is fully visible"
+              >
+                <CheckCheck size={12} />
+                <span>Fit All Content</span>
+              </button>
+            )}
+
             {/* Flip Horizontal */}
             <button
               type="button"
@@ -642,7 +752,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               type="button"
               onClick={() => onDeleteElement(selectedElement.id)}
               className="flex items-center gap-1 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-xs font-bold text-rose-400 hover:bg-rose-500/20 transition-all"
-              title="Delete element"
+              title="Delete element (Del)"
             >
               <Trash2 size={12} />
             </button>
@@ -654,11 +764,35 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 px-3 py-1 text-xs font-bold text-white shadow-xs hover:from-purple-500 hover:to-pink-500 transition-all"
-              title="Upload photo onto canvas"
+              title="Upload photos onto canvas"
             >
               <Upload size={13} />
               <span>Upload Photo</span>
             </button>
+
+            {onAutoLayout && (
+              <button
+                type="button"
+                onClick={onAutoLayout}
+                className="flex items-center gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1 text-xs font-bold text-indigo-400 hover:bg-indigo-500/20 transition-all"
+                title="Autofit without template: arranges all photos and text in clean grid/collage"
+              >
+                <LayoutGrid size={13} />
+                <span>Auto Layout</span>
+              </button>
+            )}
+
+            {onFitAllContent && (
+              <button
+                type="button"
+                onClick={onFitAllContent}
+                className="flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-bold text-emerald-400 hover:bg-emerald-500/20 transition-all"
+                title="Ensure all text & photos are visible and fix overflows"
+              >
+                <CheckCheck size={13} />
+                <span>Fit All Content</span>
+              </button>
+            )}
 
             {onStartBlank && (
               <button
@@ -731,6 +865,26 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
       <div
         ref={containerRef}
         onClick={handleCanvasClick}
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            const files = Array.from(e.dataTransfer.files).filter((f) =>
+              f.type.startsWith("image/")
+            );
+            if (files.length > 0) {
+              if (onUploadMultiplePhotos) {
+                onUploadMultiplePhotos(files);
+              } else if (onUploadPhoto) {
+                files.forEach((f) => onUploadPhoto(f));
+              }
+            }
+          }
+        }}
         className="relative flex flex-1 overflow-auto p-8 bg-bg-3/50"
       >
         <div

@@ -7,6 +7,8 @@ import {
   Download,
   Undo2,
   Redo2,
+  Save,
+  Check,
 } from "@/icons/lucide-compat";
 import { ToolcraftButton as Button } from "@openreel/ui";
 import { DesignSizePreset, SIZE_PRESETS } from "./types";
@@ -19,12 +21,15 @@ interface DesignNavbarProps {
   onSizePresetChange: (preset: DesignSizePreset) => void;
   onNavigate: (route: AppRoute) => void;
   onDownload: () => void;
+  onOpenExportModal?: () => void;
   onSaveToTimeline: () => void;
   isProcessing: boolean;
   canUndo?: boolean;
   canRedo?: boolean;
   onUndo?: () => void;
   onRedo?: () => void;
+  onManualSave?: () => void;
+  isSaved?: boolean;
 }
 
 export const DesignNavbar: React.FC<DesignNavbarProps> = ({
@@ -34,12 +39,15 @@ export const DesignNavbar: React.FC<DesignNavbarProps> = ({
   onSizePresetChange,
   onNavigate,
   onDownload,
+  onOpenExportModal,
   onSaveToTimeline,
   isProcessing,
   canUndo = false,
   canRedo = false,
   onUndo,
   onRedo,
+  onManualSave,
+  isSaved = true,
 }) => {
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-bg-1 px-4 z-20 select-none">
@@ -148,12 +156,30 @@ export const DesignNavbar: React.FC<DesignNavbarProps> = ({
           </select>
         </div>
 
+        {/* Manual Save Button */}
+        {onManualSave && (
+          <button
+            type="button"
+            onClick={onManualSave}
+            className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition-all ${
+              isSaved
+                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+                : "border-purple-500/40 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20"
+            }`}
+            title="Manual Save (Project is also autosaved continuously)"
+          >
+            {isSaved ? <Check size={13} /> : <Save size={13} />}
+            <span>{isSaved ? "Saved" : "Save"}</span>
+          </button>
+        )}
+
+        {/* Export / Download Options */}
         <Button
-          label="Download PNG"
+          label="Export..."
           variant="secondary"
           size="sm"
           icon={<Download size={14} />}
-          onClick={onDownload}
+          onClick={onOpenExportModal || onDownload}
         />
 
         <Button

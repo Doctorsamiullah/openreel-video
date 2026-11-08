@@ -26,7 +26,9 @@ export interface PhotoAdjustments {
   contrast: number; // -100 to 100
   saturation: number; // -100 to 100
   warmth: number; // -100 to 100
+  temperature?: number; // -100 to 100
   tint: number; // -100 to 100
+  exposure?: number; // -100 to 100
   blur: number; // 0 to 40 (px)
   sharpness: number; // 0 to 100
   vignette: number; // 0 to 100
@@ -35,6 +37,7 @@ export interface PhotoAdjustments {
   colorTintIntensity?: number; // 0 to 100%
   invert?: number; // 0 to 100%
   grayscale?: number; // 0 to 100%
+  sepia?: number; // 0 to 100%
 }
 
 export const DEFAULT_PHOTO_ADJUSTMENTS: PhotoAdjustments = {
@@ -42,7 +45,9 @@ export const DEFAULT_PHOTO_ADJUSTMENTS: PhotoAdjustments = {
   contrast: 0,
   saturation: 0,
   warmth: 0,
+  temperature: 0,
   tint: 0,
+  exposure: 0,
   blur: 0,
   sharpness: 0,
   vignette: 0,
@@ -51,6 +56,7 @@ export const DEFAULT_PHOTO_ADJUSTMENTS: PhotoAdjustments = {
   colorTintIntensity: 0,
   invert: 0,
   grayscale: 0,
+  sepia: 0,
 };
 
 export type ShapeType = "rect" | "circle" | "pill" | "star" | "triangle" | "line";
@@ -70,6 +76,10 @@ export interface DesignElement {
   flipY?: boolean;
   flipV?: boolean;
 
+  // Transform & Constraints
+  lockAspectRatio?: boolean;
+  aspectRatio?: number;
+
   // Text specific
   text?: string;
   fontSize?: number;
@@ -84,10 +94,12 @@ export interface DesignElement {
   letterSpacing?: number;
   textShadowColor?: string;
   textShadowBlur?: number;
+  textShadowOffsetX?: number;
+  textShadowOffsetY?: number;
   strokeColor?: string;
   strokeWidth?: number;
 
-  // Shape specific
+  // Shape & Rounded photo specific
   shapeType?: ShapeType;
   backgroundColor?: string;
   borderColor?: string;
@@ -100,6 +112,13 @@ export interface DesignElement {
   originalWidth?: number;
   originalHeight?: number;
   adjustments?: PhotoAdjustments;
+  fitMode?: "fill" | "fit";
+  crop?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
 
   // Style Match
   styleMatch?: StyleMatchPreset;
@@ -184,3 +203,9 @@ export const BRAND_PALETTES: BrandPalette[] = [
   { name: "Rose Blush", bg: "#500724", primary: "#db2777", accent: "#fbcfe8", secondary: "#831843" },
   { name: "Clean Minimal", bg: "#ffffff", primary: "#0f172a", accent: "#3b82f6", secondary: "#e2e8f0" },
 ];
+
+export interface ExportOptions {
+  format: "png" | "jpg" | "pdf";
+  quality: number; // 0.1 to 1.0 (for jpg)
+  scale: number; // 1, 2, 3
+}

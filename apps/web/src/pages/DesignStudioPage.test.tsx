@@ -86,13 +86,27 @@ describe("DesignStudioPage (Hybrid Canva + Photoshop Platform)", () => {
     expect(screen.getByText("اردو عنوان شامل کریں")).toBeInTheDocument();
   });
 
-  it("renders export actions, format presets, and triggers download", () => {
+  it("renders export actions, format presets, and triggers export modal", () => {
     render(<DesignStudioPage />);
-    expect(screen.getByText("Download PNG")).toBeInTheDocument();
+    expect(screen.getByText("Export...")).toBeInTheDocument();
     expect(screen.getByText("Add to Video Timeline")).toBeInTheDocument();
     expect(screen.getByText("Format:")).toBeInTheDocument();
 
-    const downloadBtn = screen.getByText("Download PNG");
-    fireEvent.click(downloadBtn);
+    const exportBtn = screen.getByText("Export...");
+    fireEvent.click(exportBtn);
+
+    // Modal opens with PNG, JPG, PDF options
+    expect(screen.getByText(/Export & Download Design/i)).toBeInTheDocument();
+    expect(screen.getByText("PNG")).toBeInTheDocument();
+    expect(screen.getByText("JPG")).toBeInTheDocument();
+    expect(screen.getByText("PDF")).toBeInTheDocument();
+  });
+
+  it("renders Auto Layout and Fit All Content buttons", () => {
+    render(<DesignStudioPage />);
+    const autoLayoutBtns = screen.getAllByText("Auto Layout");
+    expect(autoLayoutBtns.length).toBeGreaterThan(0);
+    const fitAllBtns = screen.getAllByText(/Fit (All Content|Content)/i);
+    expect(fitAllBtns.length).toBeGreaterThan(0);
   });
 });

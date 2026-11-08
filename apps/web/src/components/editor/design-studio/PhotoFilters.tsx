@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Sliders,
   RefreshCw,
@@ -7,6 +7,8 @@ import {
   RotateCw,
   Palette,
   Sparkles,
+  Eye,
+  Layers,
 } from "@/icons/lucide-compat";
 import { PhotoAdjustments, DEFAULT_PHOTO_ADJUSTMENTS } from "./types";
 
@@ -18,7 +20,8 @@ interface PhotoFiltersProps {
   onRotate?: () => void;
   flipH?: boolean;
   flipV?: boolean;
-  onApplyToAll?: () => void;
+  onApplyToAll?: (adjustments: PhotoAdjustments) => void;
+  onPreviewOriginal?: (showOriginal: boolean) => void;
 }
 
 export interface FilterPreset {
@@ -33,8 +36,8 @@ export const PHOTO_FILTER_PRESETS: FilterPreset[] = [
   { id: "clinical", name: "Clinical Clear", adjustments: { brightness: 10, contrast: 15, saturation: -5, sharpness: 25 } },
   { id: "warm-gold", name: "Warm Gold", adjustments: { warmth: 35, brightness: 8, saturation: 15, hueRotate: 15 } },
   { id: "cool-teal", name: "Cool Teal", adjustments: { warmth: -30, contrast: 18, saturation: 10, hueRotate: -25 } },
-  { id: "vintage", name: "Vintage 90s", adjustments: { contrast: -10, warmth: 25, vignette: 30, saturation: -15 } },
-  { id: "bw", name: "Dramatic B&W", adjustments: { saturation: -100, contrast: 45, brightness: 5, sharpness: 25 } },
+  { id: "vintage", name: "Vintage 90s", adjustments: { contrast: -10, warmth: 25, vignette: 30, saturation: -15, sepia: 30 } },
+  { id: "bw", name: "Dramatic B&W", adjustments: { grayscale: 100, contrast: 45, brightness: 5, sharpness: 25 } },
   { id: "cyber", name: "Cyber Neon", adjustments: { hueRotate: 130, saturation: 60, contrast: 25 } },
   { id: "soft", name: "Soft Glow", adjustments: { blur: 2, brightness: 12, contrast: -10, saturation: 10 } },
 ];
@@ -58,41 +61,110 @@ export const PhotoFilters: React.FC<PhotoFiltersProps> = ({
   flipH,
   flipV,
   onApplyToAll,
+  onPreviewOriginal,
 }) => {
+  const [scope, setScope] = useState<"selected" | "all">("selected");
+  const [isHoldingOriginal, setIsHoldingOriginal] = useState(false);
   const current = adjustments || DEFAULT_PHOTO_ADJUSTMENTS;
 
   const update = (key: keyof PhotoAdjustments, val: any) => {
-    onChange({
+    const updated = {
       ...current,
       [key]: val,
-    });
+    };
+    onChange(updated);
+    if (scope === "all" && onApplyToAll) {
+      onApplyToAll(updated);
+    }
   };
 
   const handleApplyPreset = (preset: FilterPreset) => {
-    onChange({
+    const updated = {
       ...DEFAULT_PHOTO_ADJUSTMENTS,
       ...preset.adjustments,
-    });
+    };
+    onChange(updated);
+    if (scope === "all" && onApplyToAll) {
+      onApplyToAll(updated);
+    }
   };
 
   const handleReset = () => {
     onChange(DEFAULT_PHOTO_ADJUSTMENTS);
+    if (scope === "all" && onApplyToAll) {
+      onApplyToAll(DEFAULT_PHOTO_ADJUSTMENTS);
+    }
   };
 
   return (
     <div className="space-y-4 select-none">
-      {/* Header with Reset & Apply to All */}
+      {/* Header with Reset & Hold Comparison */}
       <div className="flex items-center justify-between border-b border-border pb-2">
         <span className="text-xs font-bold uppercase tracking-wider text-fg-3 flex items-center gap-1.5">
           <Sliders size={13} className="text-purple-400" />
           Photo Color & Adjustments
         </span>
+        <div className="flex items-center gap-2">
+          {onPreviewOriginal && (
+            <button
+              type="button"
+              onMouseDown={() => {
+                setIsHoldingOriginal(true);
+                onPreviewOriginal(true);
+              }}
+              onMouseUp={() => {
+                setIsHoldingOriginal(false);
+                onPreviewOriginal(false);
+              }}
+              onMouseLeave={() => {
+                if (isHoldingOriginal) {
+                  setIsHoldingOriginal(false);
+                  onPreviewOriginal(false);
+                }
+              }}
+              className="text-[10px] text-amber-400 hover:text-amber-300 flex items-center gap-1 font-semibold border border-amber-500/30 rounded px-1.5 py-0.5 bg-amber-500/10 active:bg-amber-500/30"
+              title="Click and hold to compare with unedited original"
+            >
+              <Eye size={10} /> {isHoldingOriginal ? "Original" : "Hold Before/After"}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleReset}
+            className="text-[11px] text-purple-400 hover:text-purple-300 flex items-center gap-1 font-medium hover:underline"
+          >
+            <RefreshCw size={10} /> Reset
+          </button>
+        </div>
+      </div>
+
+      {/* Scope Toggle: [Selected Photo] vs [All Photos] */}
+      <div className="rounded-xl border border-border bg-bg-2 p-1 flex items-center">
         <button
           type="button"
-          onClick={handleReset}
-          className="text-[11px] text-purple-400 hover:text-purple-300 flex items-center gap-1 font-medium hover:underline"
+          onClick={() => setScope("selected")}
+          className={`flex-1 py-1 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+            scope === "selected"
+              ? "bg-purple-600 text-white shadow-sm"
+              : "text-fg-muted hover:text-fg"
+          }`}
         >
-          <RefreshCw size={10} /> Reset
+          <span>Selected Photo</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setScope("all");
+            if (onApplyToAll) onApplyToAll(current);
+          }}
+          className={`flex-1 py-1 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+            scope === "all"
+              ? "bg-purple-600 text-white shadow-sm"
+              : "text-fg-muted hover:text-fg"
+          }`}
+        >
+          <Layers size={12} />
+          <span>All Photos ({onApplyToAll ? "Sync" : "All"})</span>
         </button>
       </div>
 
@@ -190,6 +262,17 @@ export const PhotoFilters: React.FC<PhotoFiltersProps> = ({
                 {tint.name}
               </button>
             ))}
+            {/* Custom Color Input */}
+            <input
+              type="color"
+              value={current.colorTint || "#3b82f6"}
+              onChange={(e) => {
+                update("colorTint", e.target.value);
+                if (!current.colorTintIntensity) update("colorTintIntensity", 35);
+              }}
+              className="h-6 w-7 rounded border border-border cursor-pointer bg-transparent"
+              title="Custom Color Picker"
+            />
           </div>
         </div>
 
@@ -212,14 +295,14 @@ export const PhotoFilters: React.FC<PhotoFiltersProps> = ({
         )}
 
         {/* Apply to All Photos Button */}
-        {onApplyToAll && (
+        {onApplyToAll && scope === "selected" && (
           <button
             type="button"
-            onClick={onApplyToAll}
+            onClick={() => onApplyToAll(current)}
             className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-bg-2 hover:bg-bg-3 border border-purple-500/40 p-1.5 text-[11px] font-bold text-purple-400 transition-all shadow-xs"
           >
             <Sparkles size={12} />
-            <span>Apply Color Changes to All Photos</span>
+            <span>Apply Current Colors to All Photos</span>
           </button>
         )}
       </div>
@@ -243,6 +326,22 @@ export const PhotoFilters: React.FC<PhotoFiltersProps> = ({
 
       {/* Photoshop Raster Sliders */}
       <div className="space-y-3 pt-2 border-t border-border">
+        {/* Exposure */}
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs font-medium">
+            <span className="text-fg-2">Exposure</span>
+            <span className="text-fg-muted font-mono">{current.exposure || 0}</span>
+          </div>
+          <input
+            type="range"
+            min="-100"
+            max="100"
+            value={current.exposure || 0}
+            onChange={(e) => update("exposure", Number(e.target.value))}
+            className="w-full h-1.5 bg-bg-3 rounded-lg appearance-none cursor-pointer accent-purple-500"
+          />
+        </div>
+
         {/* Brightness */}
         <div className="space-y-1">
           <div className="flex justify-between text-xs font-medium">
@@ -291,34 +390,22 @@ export const PhotoFilters: React.FC<PhotoFiltersProps> = ({
           />
         </div>
 
-        {/* Sharpness */}
+        {/* Temperature / Warmth */}
         <div className="space-y-1">
           <div className="flex justify-between text-xs font-medium">
-            <span className="text-fg-2">Sharpness / Detail</span>
-            <span className="text-fg-muted font-mono">{current.sharpness}</span>
-          </div>
-          <input
-            type="range"
-            min="0"
-            max="100"
-            value={current.sharpness}
-            onChange={(e) => update("sharpness", Number(e.target.value))}
-            className="w-full h-1.5 bg-bg-3 rounded-lg appearance-none cursor-pointer accent-purple-500"
-          />
-        </div>
-
-        {/* Warmth */}
-        <div className="space-y-1">
-          <div className="flex justify-between text-xs font-medium">
-            <span className="text-fg-2">Warmth / Temp</span>
-            <span className="text-fg-muted font-mono">{current.warmth}</span>
+            <span className="text-fg-2">Temperature (Warmth)</span>
+            <span className="text-fg-muted font-mono">{current.warmth || current.temperature || 0}</span>
           </div>
           <input
             type="range"
             min="-100"
             max="100"
-            value={current.warmth}
-            onChange={(e) => update("warmth", Number(e.target.value))}
+            value={current.warmth || current.temperature || 0}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              update("warmth", v);
+              update("temperature", v);
+            }}
             className="w-full h-1.5 bg-bg-3 rounded-lg appearance-none cursor-pointer accent-amber-500"
           />
         </div>
@@ -336,6 +423,70 @@ export const PhotoFilters: React.FC<PhotoFiltersProps> = ({
             value={current.tint}
             onChange={(e) => update("tint", Number(e.target.value))}
             className="w-full h-1.5 bg-bg-3 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+          />
+        </div>
+
+        {/* Grayscale */}
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs font-medium">
+            <span className="text-fg-2">Grayscale</span>
+            <span className="text-fg-muted font-mono">{current.grayscale || 0}%</span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={current.grayscale || 0}
+            onChange={(e) => update("grayscale", Number(e.target.value))}
+            className="w-full h-1.5 bg-bg-3 rounded-lg appearance-none cursor-pointer accent-zinc-500"
+          />
+        </div>
+
+        {/* Sepia */}
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs font-medium">
+            <span className="text-fg-2">Sepia (Vintage)</span>
+            <span className="text-fg-muted font-mono">{current.sepia || 0}%</span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={current.sepia || 0}
+            onChange={(e) => update("sepia", Number(e.target.value))}
+            className="w-full h-1.5 bg-bg-3 rounded-lg appearance-none cursor-pointer accent-amber-700"
+          />
+        </div>
+
+        {/* Invert */}
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs font-medium">
+            <span className="text-fg-2">Invert / Negative</span>
+            <span className="text-fg-muted font-mono">{current.invert || 0}%</span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={current.invert || 0}
+            onChange={(e) => update("invert", Number(e.target.value))}
+            className="w-full h-1.5 bg-bg-3 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+          />
+        </div>
+
+        {/* Sharpness */}
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs font-medium">
+            <span className="text-fg-2">Sharpness / Detail</span>
+            <span className="text-fg-muted font-mono">{current.sharpness}</span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={current.sharpness}
+            onChange={(e) => update("sharpness", Number(e.target.value))}
+            className="w-full h-1.5 bg-bg-3 rounded-lg appearance-none cursor-pointer accent-purple-500"
           />
         </div>
 
@@ -374,3 +525,4 @@ export const PhotoFilters: React.FC<PhotoFiltersProps> = ({
     </div>
   );
 };
+
