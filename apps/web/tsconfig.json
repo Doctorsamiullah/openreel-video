@@ -6,7 +6,6 @@
     "noEmit": true,
     "declaration": false,
     "declarationMap": false,
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
       "@openreel/core": ["../../packages/core/src/index.ts"],
