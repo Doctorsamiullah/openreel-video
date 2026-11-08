@@ -20,6 +20,7 @@ import { AIGenTab } from "./AIGenTab";
 import { RecipesTab } from "./panels/RecipesTab";
 import { TemplatesTab } from "./panels/TemplatesTab";
 import { OnlineEffectsPanel } from "./panels/OnlineEffectsPanel";
+import { PhotoToVideoPanel } from "./panels/PhotoToVideoPanel";
 import {
   EffectsPanel,
   TransitionsPanel,
@@ -55,6 +56,7 @@ type AssetsTab =
   | "media"
   | "text"
   | "online-effects"
+  | "photo-to-video"
   | "graphics"
   | "effects"
   | "transitions"
@@ -81,6 +83,11 @@ const ASSETS_TABS: ReadonlyArray<{
     value: "online-effects",
     label: "Online Effects",
     description: "Editable kinetic text, lower thirds, and motion graphics.",
+  },
+  {
+    value: "photo-to-video",
+    label: "Photo ➔ Video",
+    description: "Ken Burns slideshows, transitions, and photo animation.",
   },
   {
     value: "graphics",
@@ -202,6 +209,7 @@ const TAB_ICONS: Record<AssetsTab, React.ElementType> = {
   media: Video,
   text: Type,
   "online-effects": Globe,
+  "photo-to-video": ImageIcon,
   graphics: Shapes,
   effects: Zap,
   transitions: Shuffle,
@@ -1500,6 +1508,12 @@ export const AssetsPanel: React.FC = () => {
         return (
           <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-bg-1">
             <OnlineEffectsPanel />
+          </div>
+        );
+      case "photo-to-video":
+        return (
+          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-bg-1">
+            <PhotoToVideoPanel />
           </div>
         );
       case "effects":
