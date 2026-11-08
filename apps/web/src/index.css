@@ -66,6 +66,10 @@
     --accent-soft: #e6f9f1;
     --accent-fg: #ffffff;
     --accent-glow: rgba(16, 185, 129, 0.35);
+    --gradient-bg: linear-gradient(135deg, #f0fdf4 0%, #f8fafc 50%, #eff6ff 100%);
+    --gradient-card: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    --gradient-accent: linear-gradient(135deg, #059669 0%, #10b981 50%, #06b6d4 100%);
+    --hover-glow: 0 4px 18px rgba(5, 150, 105, 0.25);
 
     /* clip palette */
     --c-video: #6a9bd8;
@@ -106,6 +110,10 @@
     --accent-soft: oklch(0.7 0.15 162 / 0.2);
     --accent-fg: oklch(0.99 0 0);
     --accent-glow: oklch(0.7 0.15 162 / 0.45);
+    --gradient-bg: linear-gradient(180deg, #0b0f17 0%, #111827 100%);
+    --gradient-card: linear-gradient(180deg, rgba(31, 41, 55, 0.85) 0%, rgba(17, 24, 39, 0.95) 100%);
+    --gradient-accent: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    --hover-glow: 0 4px 20px rgba(16, 185, 129, 0.35);
   }
 
   [data-density="compact"] {
@@ -145,6 +153,10 @@
     --accent-soft: #dbeafe;
     --accent-fg: #ffffff;
     --accent-glow: rgba(37,99,235,0.35);
+    --gradient-bg: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 45%, #e0e7ff 100%);
+    --gradient-card: linear-gradient(180deg, #ffffff 0%, #f0f9ff 100%);
+    --gradient-accent: linear-gradient(135deg, #2563eb 0%, #0284c7 50%, #38bdf8 100%);
+    --hover-glow: 0 4px 20px rgba(37, 99, 235, 0.3);
     --c-video: #3b82f6;
     --c-text: #f59e0b;
     --c-audio: #10b981;
@@ -197,6 +209,10 @@
     --accent-soft: #ffedd5;
     --accent-fg: #ffffff;
     --accent-glow: rgba(234,88,12,0.35);
+    --gradient-bg: linear-gradient(135deg, #fff7ed 0%, #ffedd5 45%, #fee2e2 100%);
+    --gradient-card: linear-gradient(180deg, #ffffff 0%, #fff7ed 100%);
+    --gradient-accent: linear-gradient(135deg, #ea580c 0%, #f97316 50%, #facc15 100%);
+    --hover-glow: 0 4px 20px rgba(234, 88, 12, 0.3);
     --c-video: #f97316;
     --c-text: #eab308;
     --c-audio: #10b981;
@@ -249,6 +265,10 @@
     --accent-soft: #d1fae5;
     --accent-fg: #ffffff;
     --accent-glow: rgba(5,150,105,0.35);
+    --gradient-bg: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 45%, #ecfdf5 100%);
+    --gradient-card: linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%);
+    --gradient-accent: linear-gradient(135deg, #059669 0%, #10b981 50%, #34d399 100%);
+    --hover-glow: 0 4px 20px rgba(5, 150, 105, 0.3);
     --c-video: #10b981;
     --c-text: #f59e0b;
     --c-audio: #14b8a6;
@@ -301,6 +321,10 @@
     --accent-soft: #ede9fe;
     --accent-fg: #ffffff;
     --accent-glow: rgba(124,58,237,0.35);
+    --gradient-bg: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 45%, #fdf2f8 100%);
+    --gradient-card: linear-gradient(180deg, #ffffff 0%, #faf5ff 100%);
+    --gradient-accent: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 50%, #c084fc 100%);
+    --hover-glow: 0 4px 20px rgba(124, 58, 237, 0.3);
     --c-video: #8b5cf6;
     --c-text: #ec4899;
     --c-audio: #10b981;
@@ -353,6 +377,10 @@
     --accent-soft: #fef3c7;
     --accent-fg: #ffffff;
     --accent-glow: rgba(217,119,6,0.35);
+    --gradient-bg: linear-gradient(135deg, #fffbeb 0%, #fef3c7 45%, #fff7ed 100%);
+    --gradient-card: linear-gradient(180deg, #ffffff 0%, #fffbeb 100%);
+    --gradient-accent: linear-gradient(135deg, #d97706 0%, #f59e0b 50%, #fbbf24 100%);
+    --hover-glow: 0 4px 20px rgba(217, 119, 6, 0.3);
     --c-video: #eab308;
     --c-text: #ea580c;
     --c-audio: #10b981;
@@ -405,6 +433,10 @@
     --accent-soft: #fce7f3;
     --accent-fg: #ffffff;
     --accent-glow: rgba(219,39,119,0.35);
+    --gradient-bg: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 45%, #fff1f2 100%);
+    --gradient-card: linear-gradient(180deg, #ffffff 0%, #fdf2f8 100%);
+    --gradient-accent: linear-gradient(135deg, #db2777 0%, #ec4899 50%, #f43f5e 100%);
+    --hover-glow: 0 4px 20px rgba(219, 39, 119, 0.3);
     --c-video: #ec4899;
     --c-text: #f59e0b;
     --c-audio: #10b981;
@@ -563,3 +595,131 @@
   pointer-events: none;
   font-weight: 500;
 }
+
+/* ==========================================================================
+   COLORFUL GRADIENT & HOVER MICRO-INTERACTIONS ACROSS ALL APP ELEMENTS
+   ========================================================================== */
+
+/* App background gradient */
+body, [data-theme] {
+  background: var(--gradient-bg, var(--bg));
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+/* Interactive Buttons: Dynamic hover lift, scale, border glow & active press */
+button,
+[role="button"],
+.toolcraft-button {
+  transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.18s cubic-bezier(0.4, 0, 0.2, 1),
+              background 0.18s ease,
+              border-color 0.18s ease,
+              color 0.18s ease !important;
+}
+
+button:hover:not(:disabled),
+[role="button"]:hover:not(:disabled),
+.toolcraft-button:hover:not(:disabled) {
+  transform: translateY(-1.5px);
+  box-shadow: var(--shadow-sm), var(--hover-glow, 0 4px 14px rgba(0,0,0,0.1));
+}
+
+button:active:not(:disabled),
+[role="button"]:active:not(:disabled),
+.toolcraft-button:active:not(:disabled) {
+  transform: translateY(0.5px) scale(0.98);
+}
+
+/* Primary Action Buttons: Radiant Accent Gradient */
+button[class*="bg-primary"],
+button[class*="bg-emerald-600"],
+button[class*="bg-purple-600"],
+button[class*="bg-pink-500"],
+.toolcraft-button[data-variant="primary"] {
+  background-image: var(--gradient-accent) !important;
+  color: #ffffff !important;
+  border: none !important;
+  box-shadow: 0 2px 10px var(--accent-glow) !important;
+}
+
+button[class*="bg-primary"]:hover:not(:disabled),
+button[class*="bg-emerald-600"]:hover:not(:disabled),
+button[class*="bg-purple-600"]:hover:not(:disabled),
+button[class*="bg-pink-500"]:hover:not(:disabled),
+.toolcraft-button[data-variant="primary"]:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 6px 22px var(--accent-glow) !important;
+  filter: brightness(1.08);
+}
+
+/* Secondary & Bordered Buttons: Accent borders on hover */
+button[class*="border"]:hover:not(:disabled),
+.toolcraft-button[data-variant="secondary"]:hover:not(:disabled) {
+  border-color: var(--accent) !important;
+}
+
+/* Cards, Modals, Panels, and Drawers */
+[class*="rounded-xl"],
+[class*="rounded-lg"][class*="border"],
+[role="dialog"] {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.2s ease;
+}
+
+/* Preset & Template cards hover glow */
+.group:hover [class*="border"],
+[class*="cursor-pointer"]:hover {
+  border-color: var(--accent);
+}
+
+/* Header & Toolbar Glassmorphic Gradient Glow */
+header, 
+nav,
+[role="toolbar"] {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-color: var(--border) !important;
+}
+
+/* Studio Workspace Switcher Pills */
+[role="group"][aria-label*="mode"],
+header .flex.items-center.gap-1.rounded-lg {
+  background: var(--gradient-card) !important;
+  border-color: var(--border-strong) !important;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.05), var(--shadow-sm);
+}
+
+/* Input, Select, Textarea Focus Glow */
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px var(--accent-soft) !important;
+  outline: none !important;
+}
+
+/* Range Slider Styling with Accent Color */
+input[type="range"] {
+  accent-color: var(--accent);
+}
+
+/* Badges with colorful gradient glow */
+span[class*="rounded"][class*="font-semibold"] {
+  box-shadow: 0 1px 4px var(--accent-soft);
+}
+
+/* Timeline clips: vivid saturated gradient lanes */
+[data-clip-type="video"] {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%) !important;
+}
+[data-clip-type="audio"] {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+}
+[data-clip-type="text"] {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+}
+[data-clip-type="music"] {
+  background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%) !important;
+}
+

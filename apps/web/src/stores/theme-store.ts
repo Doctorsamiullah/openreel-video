@@ -81,10 +81,13 @@ export const useThemeStore = create<ThemeState>()(
 
       toggleTheme: () => {
         const currentMode = get().mode;
-        const themeIds = THEME_DEFINITIONS.map((t) => t.id);
-        const idx = themeIds.indexOf(currentMode);
-        const nextMode = themeIds[(idx + 1) % themeIds.length];
-        get().setMode(nextMode);
+        if (currentMode === "light") {
+          get().setMode("dark");
+        } else if (currentMode === "dark") {
+          get().setMode("auto");
+        } else {
+          get().setMode("light");
+        }
       },
     }),
     {
