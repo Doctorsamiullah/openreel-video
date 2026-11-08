@@ -1,11 +1,12 @@
 import React, { useRef, useState } from "react";
-import { Upload, Sparkles, Plus } from "@/icons/lucide-compat";
+import { Upload, Sparkles, Plus, Layers } from "@/icons/lucide-compat";
 import { toast } from "../../../../stores/notification-store";
 import { DesignElement, DEFAULT_PHOTO_ADJUSTMENTS } from "../types";
 import { SAMPLE_ASSETS } from "./sample-assets";
 
 interface UploadsManagerProps {
   onInsertImage: (element: DesignElement) => void;
+  onDeconstructPoster?: (imageSrc: string, fileName: string) => void;
   canvasWidth: number;
   canvasHeight: number;
 }
@@ -20,14 +21,16 @@ export interface UserUploadedImage {
 
 export const UploadsManager: React.FC<UploadsManagerProps> = ({
   onInsertImage,
+  onDeconstructPoster,
   canvasWidth,
   canvasHeight,
 }) => {
   const [userUploads, setUserUploads] = useState<UserUploadedImage[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const posterDeconstructInputRef = useRef<HTMLInputElement>(null);
 
-  const processFiles = (files: FileList | null) => {
+  const processFiles = (files: FileList | null, isDeconstructMode: boolean = false) => {
     if (!files || files.length === 0) return;
 
     Array.from(files).forEach((file) => {
@@ -49,7 +52,12 @@ export const UploadsManager: React.FC<UploadsManagerProps> = ({
             height: img.naturalHeight || img.height || 400,
           };
           setUserUploads((prev) => [newUpload, ...prev]);
-          toast.success(`Uploaded "${file.name}"`);
+
+          if (isDeconstructMode && onDeconstructPoster) {
+            onDeconstructPoster(dataUrl, file.name);
+          } else {
+            toast.success(`Uploaded "${file.name}"`);
+          }
         };
         img.src = dataUrl;
       };
@@ -106,6 +114,34 @@ export const UploadsManager: React.FC<UploadsManagerProps> = ({
         </span>
       </div>
 
+      {/* Magic Layers Upload & Deconstruct Button */}
+      <div className="rounded-xl border border-purple-500/40 bg-gradient-to-r from-purple-500/10 to-pink-500/10 p-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-sm">
+            <Layers size={15} />
+          </div>
+          <div>
+            <span className="text-xs font-bold text-fg block">Magic Layers Deconstruction</span>
+            <span className="text-[10px] text-fg-muted">Upload any flat poster & turn text/photos editable</span>
+          </div>
+        </div>
+        <input
+          type="file"
+          ref={posterDeconstructInputRef}
+          onChange={(e) => processFiles(e.target.files, true)}
+          accept="image/*"
+          className="hidden"
+        />
+        <button
+          type="button"
+          onClick={() => posterDeconstructInputRef.current?.click()}
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 px-3 py-2 text-xs font-bold text-white shadow-sm transition-all"
+        >
+          <Sparkles size={13} />
+          <span>Upload Poster to Deconstruct</span>
+        </button>
+      </div>
+
       {/* Drag & Drop Upload Zone */}
       <div
         onDragOver={(e) => {
@@ -124,7 +160,7 @@ export const UploadsManager: React.FC<UploadsManagerProps> = ({
         <input
           type="file"
           ref={fileInputRef}
-          onChange={(e) => processFiles(e.target.files)}
+          onChange={(e) => processFiles(e.target.files, false)}
           accept="image/*"
           multiple
           className="hidden"
@@ -133,7 +169,7 @@ export const UploadsManager: React.FC<UploadsManagerProps> = ({
           <Upload size={22} />
         </div>
         <span className="text-xs font-bold text-fg group-hover:text-purple-400 transition-colors">
-          Upload your image
+          Upload photo or asset
         </span>
         <span className="text-[11px] text-fg-muted mt-0.5">
           Drag and drop or browse files
@@ -157,12 +193,28 @@ export const UploadsManager: React.FC<UploadsManagerProps> = ({
             {userUploads.map((up) => (
               <div
                 key={up.id}
-                onClick={() => handleInsert(up)}
-                className="group relative aspect-video cursor-pointer overflow-hidden rounded-lg border border-border bg-bg-2 hover:border-purple-500 hover:shadow-md transition-all"
+                className="group relative aspect-video overflow-hidden rounded-lg border border-border bg-bg-2 hover:border-purple-500 hover:shadow-md transition-all"
               >
                 <img src={up.url} alt={up.name} className="h-full w-full object-cover" />
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                  <Plus size={20} className="text-white drop-shadow" />
+                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center gap-1.5 p-1 transition-opacity">
+                  <button
+                    type="button"
+                    onClick={() => handleInsert(up)}
+                    className="flex w-full items-center justify-center gap-1 rounded bg-purple-600/90 hover:bg-purple-500 py-1 text-[10px] font-bold text-white shadow-sm"
+                  >
+                    <Plus size={11} />
+                    <span>Insert</span>
+                  </button>
+                  {onDeconstructPoster && (
+                    <button
+                      type="button"
+                      onClick={() => onDeconstructPoster(up.url, up.name)}
+                      className="flex w-full items-center justify-center gap-1 rounded bg-pink-600/90 hover:bg-pink-500 py-1 text-[9px] font-bold text-white shadow-sm"
+                    >
+                      <Layers size={10} />
+                      <span>Deconstruct</span>
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

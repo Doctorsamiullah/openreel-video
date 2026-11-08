@@ -1,7 +1,22 @@
 import React, { useRef, useEffect, useCallback, useState } from "react";
-import { ZoomIn, ZoomOut, Maximize2, RotateCw } from "@/icons/lucide-compat";
-import { DesignElement, CanvasDimensions } from "./types";
+import {
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  RotateCw,
+  Play,
+  RotateCcw,
+  Sliders,
+  Scissors,
+  Sparkles,
+  FlipHorizontal,
+  FlipVertical,
+  Video,
+  Layers,
+} from "@/icons/lucide-compat";
+import { DesignElement, CanvasDimensions, PageAnimationConfig } from "./types";
 import { FloatingActionBar } from "./FloatingActionBar";
+import { computeElementAnimation } from "./animation/animation-engine";
 
 interface MainWorkspaceProps {
   elements: DesignElement[];
@@ -13,10 +28,22 @@ interface MainWorkspaceProps {
   onToggleLock: (id: string) => void;
   onMoveLayer: (id: string, dir: "up" | "down" | "top" | "bottom") => void;
   onOpenPhotoAdjustments?: () => void;
+  onOpenAnimate?: () => void;
+  onOpenEditImage?: () => void;
+  onDeconstructCurrentPoster?: () => void;
+  onAddSceneToVideoTimeline?: () => void;
   canvasBg: string;
   dimensions: CanvasDimensions;
   zoomLevel: number;
   onZoomChange: (zoom: number) => void;
+
+  // Animation playback
+  currentTime?: number;
+  pageAnimation?: PageAnimationConfig;
+  isPlayingAnimation?: boolean;
+  onTogglePlayAnimation?: () => void;
+  onResetAnimation?: () => void;
+  onTimeScrub?: (t: number) => void;
 }
 
 type HandleType = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "rot";
@@ -31,10 +58,20 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   onToggleLock,
   onMoveLayer,
   onOpenPhotoAdjustments,
+  onOpenAnimate,
+  onOpenEditImage,
+  onDeconstructCurrentPoster,
+  onAddSceneToVideoTimeline,
   canvasBg,
   dimensions,
   zoomLevel,
   onZoomChange,
+  currentTime = 0,
+  pageAnimation = { preset: "none", duration: 5.0 },
+  isPlayingAnimation = false,
+  onTogglePlayAnimation,
+  onResetAnimation,
+  onTimeScrub,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -43,7 +80,15 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   // Interaction dragging states
   const [isDragging, setIsDragging] = useState(false);
   const [activeHandle, setActiveHandle] = useState<HandleType | null>(null);
-  const dragStartRef = useRef<{ mouseX: number; mouseY: number; elemX: number; elemY: number; elemW: number; elemH: number; rot: number }>({
+  const dragStartRef = useRef<{
+    mouseX: number;
+    mouseY: number;
+    elemX: number;
+    elemY: number;
+    elemW: number;
+    elemH: number;
+    rot: number;
+  }>({
     mouseX: 0,
     mouseY: 0,
     elemX: 0,
@@ -70,36 +115,43 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
     });
   }, [elements]);
 
-  // Main Canvas Render Loop
+  // Canvas Renderer (With Real-Time Motion, Style Matches & Photoshop Filters)
   const renderCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    canvas.width = dimensions.width;
-    canvas.height = dimensions.height;
+    // Reset transform & clear
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Background
+    // Draw Background
     ctx.fillStyle = canvasBg;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Sort elements by zIndex or array order
+    // Sort elements by zIndex
     const sorted = [...elements].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
 
     sorted.forEach((el) => {
-      ctx.save();
-      ctx.globalAlpha = el.opacity ?? 1;
+      // Calculate animated motion transform at current time t
+      const animTransform = computeElementAnimation(el, currentTime, pageAnimation);
 
-      // Translate to element center for rotation/transforms
-      const centerX = el.x + el.width / 2;
-      const centerY = el.y + el.height / 2;
+      ctx.save();
+      ctx.globalAlpha = (el.opacity ?? 1) * animTransform.opacity;
+
+      const centerX = el.x + el.width / 2 + animTransform.offsetX;
+      const centerY = el.y + el.height / 2 + animTransform.offsetY;
       ctx.translate(centerX, centerY);
 
       if (el.rotation) {
         ctx.rotate((el.rotation * Math.PI) / 180);
       }
-      ctx.scale(el.flipX ? -1 : 1, el.flipV ? -1 : 1);
+
+      ctx.scale(
+        (el.flipX ? -1 : 1) * animTransform.scaleX,
+        (el.flipV || el.flipY ? -1 : 1) * animTransform.scaleY
+      );
 
       // Render Shape
       if (el.type === "shape") {
@@ -120,6 +172,13 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             ctx.rect(-halfW, -halfH, el.width, el.height);
           }
           ctx.fill();
+        } else if (el.shapeType === "triangle") {
+          ctx.beginPath();
+          ctx.moveTo(0, -halfH);
+          ctx.lineTo(halfW, halfH);
+          ctx.lineTo(-halfW, halfH);
+          ctx.closePath();
+          ctx.fill();
         } else {
           ctx.fillRect(-halfW, -halfH, el.width, el.height);
         }
@@ -130,13 +189,16 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
           ctx.stroke();
         }
       }
-      // Render Text
+      // Render Text (with Typewriter letter-reveal animation)
       else if (el.type === "text") {
-        ctx.font = `${el.fontWeight || "normal"} ${el.fontSize || 32}px ${el.fontFamily || "Inter"}, sans-serif`;
+        ctx.font = `${el.fontWeight || "normal"} ${el.fontSize || 32}px ${
+          el.fontFamily || "Inter"
+        }, sans-serif`;
         ctx.fillStyle = el.fill || "#ffffff";
         ctx.textAlign = el.textAlign || "left";
 
-        const lines = (el.text || "").split("\n");
+        const textToRender = animTransform.visibleText !== undefined ? animTransform.visibleText : (el.text || "");
+        const lines = textToRender.split("\n");
         const lineHeight = (el.fontSize || 32) * (el.lineHeight || 1.25);
         let textX = -el.width / 2;
         if (el.textAlign === "center") textX = 0;
@@ -149,23 +211,40 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
           ctx.fillText(line, textX, startY + index * lineHeight);
         });
       }
-      // Render Image with Photoshop filters
+      // Render Image with Photoshop filters & Style Match
       else if (el.type === "image" && el.src) {
         const img = imageCacheRef.current.get(el.src);
         if (img && img.complete) {
           const adj = el.adjustments;
+          let filterStr = "";
+
           if (adj) {
             const b = 1 + (adj.brightness || 0) / 100;
             const c = 1 + (adj.contrast || 0) / 100;
             const s = 1 + (adj.saturation || 0) / 100;
             const bl = adj.blur || 0;
-            ctx.filter = `brightness(${b}) contrast(${c}) saturate(${s}) blur(${bl}px)`;
+            filterStr += `brightness(${b}) contrast(${c}) saturate(${s}) blur(${bl}px) `;
+          }
+
+          // Apply Style Match
+          if (el.styleMatch === "etching") {
+            filterStr += "grayscale(100%) contrast(160%) ";
+          } else if (el.styleMatch === "scrapbook") {
+            filterStr += "sepia(45%) contrast(120%) ";
+          } else if (el.styleMatch === "cyberpunk") {
+            filterStr += "hue-rotate(180deg) saturate(220%) ";
+          } else if (el.styleMatch === "duotone") {
+            filterStr += "sepia(80%) hue-rotate(280deg) saturate(180%) ";
+          }
+
+          if (filterStr) {
+            ctx.filter = filterStr.trim();
           }
 
           ctx.drawImage(img, -el.width / 2, -el.height / 2, el.width, el.height);
           ctx.filter = "none";
 
-          // Warmth/Tint overlay
+          // Warmth / Tint overlay
           if (adj && (adj.warmth || adj.tint)) {
             ctx.save();
             ctx.globalCompositeOperation = "color";
@@ -195,7 +274,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
 
       ctx.restore();
     });
-  }, [canvasBg, elements, dimensions]);
+  }, [canvasBg, elements, dimensions, currentTime, pageAnimation]);
 
   useEffect(() => {
     renderCanvas();
@@ -209,27 +288,30 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
+
     const clickX = (e.clientX - rect.left) * scaleX;
     const clickY = (e.clientY - rect.top) * scaleY;
 
-    // Search top-to-bottom
+    // Check hit in reverse order (topmost layer first)
     const sorted = [...elements].sort((a, b) => (b.zIndex || 0) - (a.zIndex || 0));
-    const hit = sorted.find((el) => {
-      return (
+    const hit = sorted.find(
+      (el) =>
         clickX >= el.x &&
         clickX <= el.x + el.width &&
         clickY >= el.y &&
         clickY <= el.y + el.height
-      );
-    });
+    );
 
-    onSelectId(hit ? hit.id : null);
+    if (hit) {
+      onSelectId(hit.id);
+    } else {
+      onSelectId(null);
+    }
   };
 
-  // Drag element
+  // Dragging element
   const handleMouseDownElement = (e: React.MouseEvent) => {
     if (!selectedElement || selectedElement.locked) return;
-    e.stopPropagation();
     setIsDragging(true);
     dragStartRef.current = {
       mouseX: e.clientX,
@@ -238,14 +320,14 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
       elemY: selectedElement.y,
       elemW: selectedElement.width,
       elemH: selectedElement.height,
-      rot: selectedElement.rotation || 0,
+      rot: selectedElement.rotation,
     };
   };
 
-  // Handle Resize Node
+  // Resize / Rotate Handles
   const handleMouseDownHandle = (handle: HandleType, e: React.MouseEvent) => {
-    if (!selectedElement || selectedElement.locked) return;
     e.stopPropagation();
+    if (!selectedElement || selectedElement.locked) return;
     setActiveHandle(handle);
     dragStartRef.current = {
       mouseX: e.clientX,
@@ -254,17 +336,17 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
       elemY: selectedElement.y,
       elemW: selectedElement.width,
       elemH: selectedElement.height,
-      rot: selectedElement.rotation || 0,
+      rot: selectedElement.rotation,
     };
   };
 
-  // Mouse Move listener on window
+  // Global mouse move
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!selectedElement || selectedElement.locked) return;
-      const scale = zoomLevel / 100;
-      const dx = (e.clientX - dragStartRef.current.mouseX) / scale;
-      const dy = (e.clientY - dragStartRef.current.mouseY) / scale;
+      const zoom = zoomLevel / 100;
+      const dx = (e.clientX - dragStartRef.current.mouseX) / zoom;
+      const dy = (e.clientY - dragStartRef.current.mouseY) / zoom;
 
       if (isDragging) {
         onUpdateElement(selectedElement.id, {
@@ -272,46 +354,48 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
           y: Math.round(dragStartRef.current.elemY + dy),
         });
       } else if (activeHandle) {
-        let newW = dragStartRef.current.elemW;
-        let newH = dragStartRef.current.elemH;
-        let newX = dragStartRef.current.elemX;
-        let newY = dragStartRef.current.elemY;
+        const { elemX, elemY, elemW, elemH } = dragStartRef.current;
 
-        if (activeHandle === "se") {
-          newW = Math.max(20, dragStartRef.current.elemW + dx);
-          newH = Math.max(20, dragStartRef.current.elemH + dy);
-        } else if (activeHandle === "e") {
-          newW = Math.max(20, dragStartRef.current.elemW + dx);
-        } else if (activeHandle === "s") {
-          newH = Math.max(20, dragStartRef.current.elemH + dy);
-        } else if (activeHandle === "nw") {
-          newW = Math.max(20, dragStartRef.current.elemW - dx);
-          newH = Math.max(20, dragStartRef.current.elemH - dy);
-          newX = dragStartRef.current.elemX + dx;
-          newY = dragStartRef.current.elemY + dy;
-        } else if (activeHandle === "sw") {
-          newW = Math.max(20, dragStartRef.current.elemW - dx);
-          newH = Math.max(20, dragStartRef.current.elemH + dy);
-          newX = dragStartRef.current.elemX + dx;
-        } else if (activeHandle === "ne") {
-          newW = Math.max(20, dragStartRef.current.elemW + dx);
-          newH = Math.max(20, dragStartRef.current.elemH - dy);
-          newY = dragStartRef.current.elemY + dy;
-        } else if (activeHandle === "rot") {
-          const canvasCenterY = (dragStartRef.current.elemY + dragStartRef.current.elemH / 2) * scale;
-          const canvasCenterX = (dragStartRef.current.elemX + dragStartRef.current.elemW / 2) * scale;
-          const angleRad = Math.atan2(e.clientY - canvasCenterY, e.clientX - canvasCenterX);
-          const angleDeg = Math.round((angleRad * 180) / Math.PI);
-          onUpdateElement(selectedElement.id, { rotation: angleDeg });
-          return;
+        if (activeHandle === "rot") {
+          const canvas = canvasRef.current;
+          if (!canvas) return;
+          const rect = canvas.getBoundingClientRect();
+          const centerX = rect.left + (elemX + elemW / 2) * zoom;
+          const centerY = rect.top + (elemY + elemH / 2) * zoom;
+          const rad = Math.atan2(e.clientY - centerY, e.clientX - centerX);
+          let deg = Math.round((rad * 180) / Math.PI) - 90;
+          if (deg < 0) deg += 360;
+          onUpdateElement(selectedElement.id, { rotation: deg });
+        } else {
+          let newW = elemW;
+          let newH = elemH;
+          let newX = elemX;
+          let newY = elemY;
+
+          if (activeHandle.includes("e")) newW = Math.max(30, elemW + dx);
+          if (activeHandle.includes("s")) newH = Math.max(20, elemH + dy);
+          if (activeHandle.includes("w")) {
+            const proposedW = elemW - dx;
+            if (proposedW > 30) {
+              newW = proposedW;
+              newX = elemX + dx;
+            }
+          }
+          if (activeHandle.includes("n")) {
+            const proposedH = elemH - dy;
+            if (proposedH > 20) {
+              newH = proposedH;
+              newY = elemY + dy;
+            }
+          }
+
+          onUpdateElement(selectedElement.id, {
+            x: Math.round(newX),
+            y: Math.round(newY),
+            width: Math.round(newW),
+            height: Math.round(newH),
+          });
         }
-
-        onUpdateElement(selectedElement.id, {
-          width: Math.round(newW),
-          height: Math.round(newH),
-          x: Math.round(newX),
-          y: Math.round(newY),
-        });
       }
     };
 
@@ -324,94 +408,183 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
       window.addEventListener("mousemove", handleMouseMove);
       window.addEventListener("mouseup", handleMouseUp);
     }
+
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
   }, [isDragging, activeHandle, selectedElement, zoomLevel, onUpdateElement]);
 
-  const scaleRatio = zoomLevel / 100;
+  const zoomFactor = zoomLevel / 100;
 
   return (
-    <div className="flex-1 flex flex-col bg-bg-2/50 relative overflow-hidden select-none">
-      {/* Canvas Sub-toolbar */}
-      <div className="flex h-10 items-center justify-between border-b border-border bg-bg-1/90 px-4 backdrop-blur-md z-10">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-fg">
-            {dimensions.width} × {dimensions.height} px
-          </span>
-          <span className="text-[11px] text-fg-muted font-mono">
-            ({dimensions.label})
-          </span>
-        </div>
+    <div className="relative flex flex-1 flex-col overflow-hidden bg-bg-3 select-none">
+      {/* ── Canva Contextual Top Action Bar (Screenshot 3 & 4) ── */}
+      <div className="flex h-12 items-center justify-between border-b border-border bg-bg-2 px-5 shrink-0 shadow-xs">
+        {selectedElement ? (
+          <div className="flex items-center gap-2">
+            {/* Edit Image Button */}
+            {selectedElement.type === "image" && (
+              <button
+                type="button"
+                onClick={onOpenEditImage || onOpenPhotoAdjustments}
+                className="flex items-center gap-1.5 rounded-lg border border-purple-500/40 bg-purple-500/10 px-3 py-1.5 text-xs font-bold text-purple-400 hover:bg-purple-500/20 transition-all"
+              >
+                <Sliders size={14} />
+                <span>Edit image</span>
+              </button>
+            )}
 
+            {/* Magic Layers Deconstruct */}
+            {selectedElement.type === "image" && onDeconstructCurrentPoster && (
+              <button
+                type="button"
+                onClick={onDeconstructCurrentPoster}
+                className="flex items-center gap-1.5 rounded-lg border border-pink-500/40 bg-pink-500/10 px-3 py-1.5 text-xs font-bold text-pink-400 hover:bg-pink-500/20 transition-all"
+                title="Deconstruct image into editable layers"
+              >
+                <Layers size={14} />
+                <span>Magic Layers</span>
+              </button>
+            )}
+
+            {/* BG Remover */}
+            {selectedElement.type === "image" && (
+              <button
+                type="button"
+                onClick={onOpenEditImage}
+                className="flex items-center gap-1.5 rounded-lg border border-border bg-bg-3 px-2.5 py-1.5 text-xs font-semibold text-fg-muted hover:text-fg hover:bg-bg-4 transition-all"
+              >
+                <Scissors size={13} />
+                <span>BG Remover</span>
+              </button>
+            )}
+
+            {/* Flip Horizontal */}
+            <button
+              type="button"
+              onClick={() =>
+                onUpdateElement(selectedElement.id, { flipX: !selectedElement.flipX })
+              }
+              className="flex items-center gap-1 rounded-lg border border-border bg-bg-3 px-2 py-1.5 text-xs text-fg-muted hover:text-fg hover:bg-bg-4 transition-all"
+              title="Flip Horizontal"
+            >
+              <FlipHorizontal size={13} />
+              <span>Flip</span>
+            </button>
+
+            {/* Flip Vertical */}
+            <button
+              type="button"
+              onClick={() =>
+                onUpdateElement(selectedElement.id, { flipV: !selectedElement.flipV })
+              }
+              className="flex items-center gap-1 rounded-lg border border-border bg-bg-3 px-2 py-1.5 text-xs text-fg-muted hover:text-fg hover:bg-bg-4 transition-all"
+              title="Flip Vertical"
+            >
+              <FlipVertical size={13} />
+            </button>
+
+            {/* Animate Button matching Canva */}
+            <button
+              type="button"
+              onClick={onOpenAnimate}
+              className="flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-bold text-amber-400 hover:bg-amber-500/20 transition-all"
+            >
+              <Sparkles size={14} />
+              <span>Animate</span>
+            </button>
+
+            {/* Layer Position */}
+            <button
+              type="button"
+              onClick={() => onMoveLayer(selectedElement.id, "top")}
+              className="flex items-center gap-1 rounded-lg border border-border bg-bg-3 px-2.5 py-1.5 text-xs font-semibold text-fg-muted hover:text-fg hover:bg-bg-4 transition-all"
+            >
+              <span>Position</span>
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 text-xs text-fg-muted font-medium">
+            <span>Canvas: {dimensions.width} × {dimensions.height} px</span>
+            <button
+              type="button"
+              onClick={onOpenAnimate}
+              className="flex items-center gap-1.5 rounded-lg border border-purple-500/40 bg-purple-500/10 px-3 py-1 text-xs font-bold text-purple-400 hover:bg-purple-500/20 transition-all"
+            >
+              <Sparkles size={13} />
+              <span>Animate Canvas</span>
+            </button>
+          </div>
+        )}
+
+        {/* Viewport Zoom Controls */}
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => onZoomChange(Math.max(zoomLevel - 10, 20))}
-            className="p-1 rounded text-fg-2 hover:text-fg hover:bg-bg-2 transition-colors"
+            onClick={() => onZoomChange(Math.max(20, zoomLevel - 10))}
+            className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-bg-3 text-fg-muted hover:text-fg"
             title="Zoom Out"
           >
-            <ZoomOut size={14} />
+            <ZoomOut size={13} />
           </button>
-          <span className="text-xs font-mono font-medium text-fg-2 w-12 text-center">
+          <span className="w-12 text-center font-mono text-xs text-fg font-semibold">
             {zoomLevel}%
           </span>
           <button
             type="button"
-            onClick={() => onZoomChange(Math.min(zoomLevel + 10, 200))}
-            className="p-1 rounded text-fg-2 hover:text-fg hover:bg-bg-2 transition-colors"
+            onClick={() => onZoomChange(Math.min(200, zoomLevel + 10))}
+            className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-bg-3 text-fg-muted hover:text-fg"
             title="Zoom In"
           >
-            <ZoomIn size={14} />
+            <ZoomIn size={13} />
           </button>
           <button
             type="button"
             onClick={() => onZoomChange(45)}
-            className="p-1 rounded text-fg-2 hover:text-fg hover:bg-bg-2 transition-colors"
+            className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-bg-3 text-fg-muted hover:text-fg"
             title="Fit to Screen"
           >
-            <Maximize2 size={14} />
+            <Maximize2 size={13} />
           </button>
         </div>
       </div>
 
-      {/* Main Viewport */}
+      {/* ── Central Scrollable / Pannable Workspace ── */}
       <div
         ref={containerRef}
-        onClick={() => onSelectId(null)}
-        className="flex-1 flex items-center justify-center p-8 overflow-auto custom-scrollbar"
+        onClick={handleCanvasClick}
+        className="relative flex flex-1 items-center justify-center overflow-auto p-12 bg-bg-3/50"
       >
         <div
-          className="relative shadow-2xl rounded-lg overflow-visible border border-border/70"
+          className="relative shadow-2xl transition-all duration-75 ease-out select-none"
           style={{
-            width: `${dimensions.width * scaleRatio}px`,
-            height: `${dimensions.height * scaleRatio}px`,
+            width: dimensions.width * zoomFactor,
+            height: dimensions.height * zoomFactor,
           }}
-          onClick={(e) => e.stopPropagation()}
         >
-          {/* HTML5 Canvas */}
+          {/* Main 2D Canvas */}
           <canvas
             ref={canvasRef}
-            onClick={handleCanvasClick}
-            className="block h-full w-full cursor-pointer rounded-lg"
+            width={dimensions.width}
+            height={dimensions.height}
+            className="h-full w-full rounded shadow-xl"
+            style={{ display: "block" }}
           />
 
-          {/* Interactive Bounding Box for Selected Object */}
+          {/* Interactive Bounding Box & Handles for Selected Element */}
           {selectedElement && (
             <div
               onMouseDown={handleMouseDownElement}
-              className={`absolute border-2 pointer-events-auto transition-colors ${
-                selectedElement.locked
-                  ? "border-amber-400 cursor-not-allowed"
-                  : "border-purple-500 cursor-move"
+              className={`absolute cursor-move border-2 ${
+                selectedElement.locked ? "border-rose-500" : "border-purple-600"
               }`}
               style={{
-                left: `${selectedElement.x * scaleRatio}px`,
-                top: `${selectedElement.y * scaleRatio}px`,
-                width: `${selectedElement.width * scaleRatio}px`,
-                height: `${selectedElement.height * scaleRatio}px`,
-                transform: `rotate(${selectedElement.rotation || 0}deg)`,
+                left: selectedElement.x * zoomFactor,
+                top: selectedElement.y * zoomFactor,
+                width: selectedElement.width * zoomFactor,
+                height: selectedElement.height * zoomFactor,
+                transform: `rotate(${selectedElement.rotation}deg)`,
                 transformOrigin: "center center",
               }}
             >
@@ -422,8 +595,12 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 onDelete={() => onDeleteElement(selectedElement.id)}
                 onToggleLock={() => onToggleLock(selectedElement.id)}
                 onMoveLayer={(dir) => onMoveLayer(selectedElement.id, dir)}
-                onFlipH={() => onUpdateElement(selectedElement.id, { flipX: !selectedElement.flipX })}
-                onFlipV={() => onUpdateElement(selectedElement.id, { flipV: !selectedElement.flipY })}
+                onFlipH={() =>
+                  onUpdateElement(selectedElement.id, { flipX: !selectedElement.flipX })
+                }
+                onFlipV={() =>
+                  onUpdateElement(selectedElement.id, { flipV: !selectedElement.flipV })
+                }
                 onOpenPhotoAdjustments={onOpenPhotoAdjustments}
                 zoomLevel={zoomLevel}
               />
@@ -479,6 +656,66 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 </>
               )}
             </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Canva Bottom Animation Scrubber & Timeline Bar ── */}
+      <div className="flex h-12 items-center justify-between border-t border-border bg-bg-2 px-5 shrink-0 shadow-sm">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onTogglePlayAnimation}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-white transition-all shadow-sm ${
+              isPlayingAnimation
+                ? "bg-amber-600 hover:bg-amber-500"
+                : "bg-purple-600 hover:bg-purple-500"
+            }`}
+          >
+            <Play size={13} className={isPlayingAnimation ? "rotate-90" : ""} />
+            <span>{isPlayingAnimation ? "Pause Motion" : "Preview Animate"}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onResetAnimation}
+            className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-bg-3 text-fg-muted hover:text-fg hover:bg-bg-4 transition-all"
+            title="Reset Scrubber"
+          >
+            <RotateCcw size={12} />
+          </button>
+
+          {/* Time Scrubber */}
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-xs text-purple-400 font-bold">
+              {currentTime.toFixed(2)}s
+            </span>
+            <input
+              type="range"
+              min="0"
+              max={pageAnimation.duration || 5.0}
+              step="0.05"
+              value={currentTime}
+              onChange={(e) => onTimeScrub && onTimeScrub(parseFloat(e.target.value))}
+              className="w-48 accent-purple-500 cursor-pointer"
+            />
+            <span className="font-mono text-xs text-fg-muted">
+              / {(pageAnimation.duration || 5.0).toFixed(1)}s
+            </span>
+          </div>
+        </div>
+
+        {/* 1-Click Video Timeline Sync */}
+        <div className="flex items-center gap-2">
+          {onAddSceneToVideoTimeline && (
+            <button
+              type="button"
+              onClick={onAddSceneToVideoTimeline}
+              className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm transition-all"
+            >
+              <Video size={13} />
+              <span>Add Animated Scene to Video Timeline</span>
+            </button>
           )}
         </div>
       </div>

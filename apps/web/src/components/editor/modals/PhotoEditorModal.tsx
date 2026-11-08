@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
+import { useRouter } from "../../../hooks/use-router";
 import {
   X,
   RotateCw,
@@ -16,6 +18,7 @@ import {
   Maximize2,
   RefreshCw,
   Check,
+  ExternalLink,
 } from "@/icons/lucide-compat";
 import { ToolcraftButton as Button } from "@openreel/ui";
 import { ToolcraftText as Text } from "@openreel/ui";
@@ -252,11 +255,18 @@ export const PhotoEditorModal: React.FC<PhotoEditorModalProps> = ({
     }, "image/png");
   };
 
+  const { navigate } = useRouter();
+
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/85 backdrop-blur-md">
-      <div className="flex flex-col w-[94vw] h-[92vh] max-w-7xl bg-bg-1 border border-border rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+  const handleOpenFullPage = () => {
+    onClose();
+    navigate("photo-editor");
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-black/90 backdrop-blur-md isolation-auto">
+      <div className="flex flex-col w-[96vw] h-[94vh] max-w-7xl bg-bg-1 border border-border rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Top Header */}
         <div className="h-14 flex items-center justify-between px-5 border-b border-border bg-bg-2 shrink-0">
           <div className="flex items-center gap-3">
@@ -264,9 +274,20 @@ export const PhotoEditorModal: React.FC<PhotoEditorModalProps> = ({
               <ImageIcon size={20} />
             </div>
             <div>
-              <Text type="label" weight="bold" className="text-sm">
-                Photo Editor (Non-Destructive)
-              </Text>
+              <div className="flex items-center gap-2">
+                <Text type="label" weight="bold" className="text-sm">
+                  Photo Editor (Non-Destructive)
+                </Text>
+                <button
+                  type="button"
+                  onClick={handleOpenFullPage}
+                  className="flex items-center gap-1 rounded bg-purple-500/20 hover:bg-purple-500/30 px-2 py-0.5 text-[10px] font-bold text-purple-400 transition-colors"
+                  title="Switch to dedicated full page mode without timeline"
+                >
+                  <ExternalLink size={10} />
+                  <span>Open Full Page Studio</span>
+                </button>
+              </div>
               <Text type="supporting" color="secondary" className="text-[11px]">
                 Full Photoshop / Canva-grade retouching, color grading, and timeline sync
               </Text>
@@ -598,7 +619,8 @@ export const PhotoEditorModal: React.FC<PhotoEditorModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

@@ -84,10 +84,62 @@ export interface DesignElement {
   originalHeight?: number;
   adjustments?: PhotoAdjustments;
 
+  // Style Match
+  styleMatch?: StyleMatchPreset;
+
+  // Canva Animation
+  animation?: ElementAnimationConfig;
+
   // Badge specific
   badgeLabel?: string;
   category?: string;
 }
+
+export type AnimationPreset =
+  | "none"
+  | "fade"
+  | "pan-left"
+  | "pan-right"
+  | "pan-up"
+  | "pan-down"
+  | "pop"
+  | "rise"
+  | "breathe"
+  | "wipe"
+  | "typewriter"
+  | "bounce"
+  | "pulse"
+  | "heartbeat";
+
+export interface ElementAnimationConfig {
+  preset: AnimationPreset;
+  duration: number; // in seconds (e.g. 1.2)
+  delay: number; // in seconds (e.g. 0.2)
+  speed?: number; // 0.5 to 2
+}
+
+export interface PageAnimationConfig {
+  preset: "none" | "pan" | "fade" | "pop" | "wipe" | "rise" | "breathe" | "stomp";
+  duration: number; // in seconds (e.g. 5.0)
+  direction?: "left" | "right" | "up" | "down";
+}
+
+export type StyleMatchPreset =
+  | "none"
+  | "scrapbook"
+  | "etching"
+  | "duotone"
+  | "retro-pop"
+  | "cyberpunk";
+
+export type EditImageTool =
+  | "adjust"
+  | "magic-layers"
+  | "magic-eraser"
+  | "upscale"
+  | "bg-remover"
+  | "image-to-video"
+  | "bg-generator";
 
 export interface DesignTemplate {
   id: string;

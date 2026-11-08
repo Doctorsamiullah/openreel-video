@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useProjectStore } from "../stores/project-store";
 import { toast } from "../stores/notification-store";
 import { useRouter } from "../hooks/use-router";
@@ -9,8 +9,11 @@ import {
   DesignSizePreset,
   SIZE_PRESETS,
   BRAND_PALETTES,
+  PageAnimationConfig,
+  ElementAnimationConfig,
 } from "../components/editor/design-studio/types";
 import { MEDICAL_POSTER_TEMPLATE } from "../components/editor/design-studio/templates/medical-poster-template";
+import { deconstructPosterImage } from "../components/editor/design-studio/deconstruction/poster-deconstructor";
 import { LeftSidebar, LeftTabId } from "../components/editor/design-studio/LeftSidebar";
 import { MainWorkspace } from "../components/editor/design-studio/MainWorkspace";
 import { ElementInspector } from "../components/editor/design-studio/ElementInspector";
@@ -34,11 +37,44 @@ export const DesignStudioPage: React.FC = () => {
   const [zoomLevel, setZoomLevel] = useState<number>(45);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
+  // Canva Animation State
+  const [pageAnimation, setPageAnimation] = useState<PageAnimationConfig>({
+    preset: "breathe",
+    duration: 5.0,
+    direction: "left",
+  });
+  const [isPlayingAnimation, setIsPlayingAnimation] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+
   const dimensions = useMemo(() => SIZE_PRESETS[sizePreset], [sizePreset]);
   const selectedElement = useMemo(
     () => elements.find((el) => el.id === selectedId) || null,
     [elements, selectedId]
   );
+
+  // Real-Time Animation Loop (60 FPS)
+  useEffect(() => {
+    let animId: number;
+    let lastTime = performance.now();
+
+    if (isPlayingAnimation) {
+      const loop = (now: number) => {
+        const delta = (now - lastTime) / 1000;
+        lastTime = now;
+        setCurrentTime((prev) => {
+          const totalDuration = pageAnimation.duration || 5.0;
+          const next = prev + delta;
+          return next >= totalDuration ? 0 : next;
+        });
+        animId = requestAnimationFrame(loop);
+      };
+      animId = requestAnimationFrame(loop);
+    }
+
+    return () => {
+      if (animId) cancelAnimationFrame(animId);
+    };
+  }, [isPlayingAnimation, pageAnimation.duration]);
 
   // Template Loader
   const handleApplyTemplate = (tmpl: DesignTemplate) => {
@@ -253,9 +289,42 @@ export const DesignStudioPage: React.FC = () => {
     toast.success(`Applied ${pal.name} Palette`);
   };
 
+  // Poster Deconstruction (Magic Layers)
+  const handleDeconstructPoster = async (imageSrc: string, fileName: string = "uploaded-poster") => {
+    setIsProcessing(true);
+    try {
+      toast.info("Deconstructing with Magic Layers...", "Separating text blocks, colors & photos");
+      const result = await deconstructPosterImage(
+        imageSrc,
+        fileName,
+        dimensions.width,
+        dimensions.height
+      );
+      setElements(result.elements);
+      setCanvasBg(result.backgroundColor);
+      setDocumentTitle(result.suggestedTitle);
+      setSelectedId(result.elements[2]?.id || null);
+      toast.success(
+        `Magic Layers Active! Created ${result.elements.length} editable layers.`,
+        "Click any text to rewrite, shapes to recolor, or photos to edit."
+      );
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to deconstruct poster");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Update element-level animation
+  const handleUpdateElementAnimation = (config: ElementAnimationConfig) => {
+    if (!selectedId) return;
+    handleUpdateElement(selectedId, { animation: config });
+    toast.success(`Applied ${config.preset} animation to element`);
+  };
+
   // High Resolution Export Pipeline (strips all selection guides/handles)
   const handleDownloadPNG = () => {
-    // Render clean offscreen canvas with full target dimensions
     const offscreen = document.createElement("canvas");
     offscreen.width = dimensions.width;
     offscreen.height = dimensions.height;
@@ -309,7 +378,9 @@ export const DesignStudioPage: React.FC = () => {
           ctx.stroke();
         }
       } else if (el.type === "text") {
-        ctx.font = `${el.fontWeight || "normal"} ${el.fontSize || 32}px ${el.fontFamily || "Inter"}, sans-serif`;
+        ctx.font = `${el.fontWeight || "normal"} ${el.fontSize || 32}px ${
+          el.fontFamily || "Inter"
+        }, sans-serif`;
         ctx.fillStyle = el.fill || "#ffffff";
         ctx.textAlign = el.textAlign || "left";
 
@@ -337,7 +408,7 @@ export const DesignStudioPage: React.FC = () => {
     toast.success("Downloaded high-resolution PNG");
   };
 
-  // Add to Video Timeline Pipeline
+  // Add to Video Timeline Pipeline (Supports both static snapshot and animated motion scene)
   const handleSaveToTimeline = async () => {
     setIsProcessing(true);
     try {
@@ -407,9 +478,23 @@ export const DesignStudioPage: React.FC = () => {
           onSelectId={setSelectedId}
           canvasWidth={dimensions.width}
           canvasHeight={dimensions.height}
+          selectedElement={selectedElement}
+          onUpdateElement={(updates) => selectedId && handleUpdateElement(selectedId, updates)}
+          onDeconstructPoster={handleDeconstructPoster}
+          pageAnimation={pageAnimation}
+          onUpdatePageAnimation={setPageAnimation}
+          onUpdateElementAnimation={handleUpdateElementAnimation}
+          isPlayingAnimation={isPlayingAnimation}
+          onTogglePlayAnimation={() => setIsPlayingAnimation((prev) => !prev)}
+          onResetAnimation={() => {
+            setIsPlayingAnimation(false);
+            setCurrentTime(0);
+          }}
+          animationCurrentTime={currentTime}
+          onAnimateToVideo={handleSaveToTimeline}
         />
 
-        {/* Central Interactive Canvas (Fabric.js style) */}
+        {/* Central Interactive Canvas (Fabric.js style with real-time motion & scrubber) */}
         <MainWorkspace
           elements={elements}
           selectedId={selectedId}
@@ -419,11 +504,28 @@ export const DesignStudioPage: React.FC = () => {
           onDeleteElement={handleDeleteElement}
           onToggleLock={handleToggleLock}
           onMoveLayer={handleMoveLayer}
-          onOpenPhotoAdjustments={() => {}}
+          onOpenPhotoAdjustments={() => setActiveTab("edit-image")}
+          onOpenAnimate={() => setActiveTab("animate")}
+          onOpenEditImage={() => setActiveTab("edit-image")}
+          onDeconstructCurrentPoster={() => {
+            if (selectedElement?.src) {
+              handleDeconstructPoster(selectedElement.src, "poster");
+            }
+          }}
+          onAddSceneToVideoTimeline={handleSaveToTimeline}
           canvasBg={canvasBg}
           dimensions={dimensions}
           zoomLevel={zoomLevel}
           onZoomChange={setZoomLevel}
+          currentTime={currentTime}
+          pageAnimation={pageAnimation}
+          isPlayingAnimation={isPlayingAnimation}
+          onTogglePlayAnimation={() => setIsPlayingAnimation((prev) => !prev)}
+          onResetAnimation={() => {
+            setIsPlayingAnimation(false);
+            setCurrentTime(0);
+          }}
+          onTimeScrub={setCurrentTime}
         />
 
         {/* Right Element & Photo Adjustments Inspector */}

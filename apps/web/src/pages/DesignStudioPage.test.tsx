@@ -70,7 +70,9 @@ describe("DesignStudioPage (Hybrid Canva + Photoshop Platform)", () => {
   it("switches to Uploads tab and renders drag-and-drop zone and medical assets", () => {
     render(<DesignStudioPage />);
     fireEvent.click(screen.getByText("Uploads"));
-    expect(screen.getByText("Upload your image")).toBeInTheDocument();
+    expect(screen.getByText("Magic Layers Deconstruction")).toBeInTheDocument();
+    expect(screen.getByText("Upload Poster to Deconstruct")).toBeInTheDocument();
+    expect(screen.getByText("Upload photo or asset")).toBeInTheDocument();
     expect(screen.getByText("Medical & Poster Assets")).toBeInTheDocument();
     expect(screen.getByText("Doctor Specialist Portrait")).toBeInTheDocument();
   });
@@ -78,9 +80,9 @@ describe("DesignStudioPage (Hybrid Canva + Photoshop Platform)", () => {
   it("switches to Text tab and displays typography options including Hindi and Urdu", () => {
     render(<DesignStudioPage />);
     fireEvent.click(screen.getByText("Text"));
-    expect(screen.getByText("Add a heading")).toBeInTheDocument();
-    expect(screen.getByText("Add a subheading")).toBeInTheDocument();
-    expect(screen.getByText("हिंदी शीर्षक जोड़ें")).toBeInTheDocument();
+    expect(screen.getByText("Add a Heading")).toBeInTheDocument();
+    expect(screen.getByText("Add a Sub-heading")).toBeInTheDocument();
+    expect(screen.getByText("हिंदी शीर्षक शामिल करें")).toBeInTheDocument();
     expect(screen.getByText("اردو عنوان شامل کریں")).toBeInTheDocument();
   });
 

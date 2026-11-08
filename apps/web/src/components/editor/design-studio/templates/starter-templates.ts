@@ -1,8 +1,10 @@
 import { DesignTemplate } from "../types";
 import { MEDICAL_POSTER_TEMPLATE } from "./medical-poster-template";
+import { MULTICARE_SPECIALTIES_TEMPLATE } from "./multicare-specialties-template";
 
 export const ALL_DESIGN_TEMPLATES: DesignTemplate[] = [
   MEDICAL_POSTER_TEMPLATE,
+  MULTICARE_SPECIALTIES_TEMPLATE,
   {
     id: "sale-mega-1",
     name: "Mega Discount Sale (50% OFF)",
