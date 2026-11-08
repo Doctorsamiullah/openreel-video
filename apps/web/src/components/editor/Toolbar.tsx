@@ -4,7 +4,9 @@ import {
   Settings,
   MoreHorizontal,
   Video,
+  BookOpen,
 } from "@/icons/lucide-compat";
+import { useSettingsStore } from "../../stores/settings-store";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
 import { useTimelineStore } from "../../stores/timeline-store";
@@ -69,6 +71,17 @@ export const Toolbar: React.FC = () => {
   const sourceMatch = useMemo(() => deriveSourceExportMatch(project), [project]);
   const hasTimelineContent = (project.timeline?.duration ?? 0) > 0;
   const { track } = useAnalytics();
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "F1") {
+        e.preventDefault();
+        useSettingsStore.getState().openSettings("help");
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   // Local editable project name (committed onBlur / Enter)
   const [projectNameDraft, setProjectNameDraft] = useState(project.name);
@@ -413,6 +426,17 @@ export const Toolbar: React.FC = () => {
 
       {/* ─── Right: export only ───────────────────────────────── */}
       <div className="flex items-center justify-end shrink-0">
+        {/* Help button (Hindi Guide) */}
+        <button
+          type="button"
+          onClick={() => useSettingsStore.getState().openSettings("help")}
+          className="flex items-center gap-1.5 rounded-[8px] border border-border bg-bg-2 hover:bg-bg-3 px-3 py-[9px] text-[13px] font-medium text-fg-2 hover:text-fg transition-colors mr-2.5 shadow-sm"
+          title="सामी वीडियो एडिटर - संपूर्ण हिंदी गाइड एवं शॉर्टकट (F1)"
+        >
+          <BookOpen size={15} className="text-primary" aria-hidden />
+          <span className="font-semibold text-xs">मदद (Help)</span>
+        </button>
+
         {/* Export */}
         {exportState.isExporting ? (
           <button

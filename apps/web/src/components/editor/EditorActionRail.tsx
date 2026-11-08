@@ -155,6 +155,16 @@ export const EditorActionRail: React.FC = () => {
         />
       </Tooltip>
 
+      <Tooltip content="मदद एवं गाइड (Help - F1)" placement="end">
+        <IconButton
+          label="मदद एवं गाइड (Help)"
+          icon={<HelpCircle size={16} aria-hidden />}
+          size="sm"
+          variant="secondary"
+          onClick={() => openSettings("help")}
+        />
+      </Tooltip>
+
       <DropdownMenu
         placement="end"
         button={{
@@ -202,9 +212,9 @@ export const EditorActionRail: React.FC = () => {
           },
           { type: "divider" },
           {
-            label: "Help & shortcuts (press ?)",
+            label: "मदद एवं गाइड (Help - F1 / ?)",
             icon: <HelpCircle size={14} aria-hidden />,
-            isDisabled: true,
+            onClick: () => openSettings("help"),
           },
           {
             label: "Project JSON",
