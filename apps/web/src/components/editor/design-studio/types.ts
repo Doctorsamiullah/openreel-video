@@ -30,6 +30,11 @@ export interface PhotoAdjustments {
   blur: number; // 0 to 40 (px)
   sharpness: number; // 0 to 100
   vignette: number; // 0 to 100
+  hueRotate?: number; // -180 to 180 degrees (full color shift)
+  colorTint?: string; // hex color wash (e.g. #3b82f6)
+  colorTintIntensity?: number; // 0 to 100%
+  invert?: number; // 0 to 100%
+  grayscale?: number; // 0 to 100%
 }
 
 export const DEFAULT_PHOTO_ADJUSTMENTS: PhotoAdjustments = {
@@ -41,6 +46,11 @@ export const DEFAULT_PHOTO_ADJUSTMENTS: PhotoAdjustments = {
   blur: 0,
   sharpness: 0,
   vignette: 0,
+  hueRotate: 0,
+  colorTint: "",
+  colorTintIntensity: 0,
+  invert: 0,
+  grayscale: 0,
 };
 
 export type ShapeType = "rect" | "circle" | "pill" | "star" | "triangle" | "line";
@@ -66,10 +76,16 @@ export interface DesignElement {
   fontFamily?: string;
   fontWeight?: string;
   fontStyle?: string;
+  textDecoration?: string;
   fill?: string;
-  textAlign?: "left" | "center" | "right";
+  textBackground?: string;
+  textAlign?: "left" | "center" | "right" | "justify";
   lineHeight?: number;
   letterSpacing?: number;
+  textShadowColor?: string;
+  textShadowBlur?: number;
+  strokeColor?: string;
+  strokeWidth?: number;
 
   // Shape specific
   shapeType?: ShapeType;
@@ -80,6 +96,7 @@ export interface DesignElement {
 
   // Image specific (Photoshop raster tools)
   src?: string;
+  fileName?: string;
   originalWidth?: number;
   originalHeight?: number;
   adjustments?: PhotoAdjustments;

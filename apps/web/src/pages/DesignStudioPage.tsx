@@ -11,6 +11,7 @@ import {
   BRAND_PALETTES,
   PageAnimationConfig,
   ElementAnimationConfig,
+  PhotoAdjustments,
 } from "../components/editor/design-studio/types";
 import { MEDICAL_POSTER_TEMPLATE } from "../components/editor/design-studio/templates/medical-poster-template";
 import { deconstructPosterImage } from "../components/editor/design-studio/deconstruction/poster-deconstructor";
@@ -34,7 +35,7 @@ export const DesignStudioPage: React.FC = () => {
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<LeftTabId>("templates");
-  const [zoomLevel, setZoomLevel] = useState<number>(45);
+  const [zoomLevel, setZoomLevel] = useState<number>(36);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
   // Canva Animation State
@@ -323,9 +324,87 @@ export const DesignStudioPage: React.FC = () => {
     toast.success(`Applied ${config.preset} animation to element`);
   };
 
-  // High Resolution Export Pipeline (strips all selection guides/handles)
-  const handleDownloadPNG = () => {
-    const offscreen = document.createElement("canvas");
+  // Upload photo directly onto canvas
+  const handleUploadDirectPhoto = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const src = e.target?.result as string;
+      const img = new Image();
+      img.onload = () => {
+        const maxW = dimensions.width * 0.6;
+        const maxH = dimensions.height * 0.6;
+        let w = img.width || 400;
+        let h = img.height || 400;
+        const scale = Math.min(maxW / w, maxH / h, 1);
+        w = Math.round(w * scale);
+        h = Math.round(h * scale);
+
+        const newEl: DesignElement = {
+          id: `image-${Date.now()}`,
+          type: "image",
+          src,
+          fileName: file.name,
+          x: Math.round((dimensions.width - w) / 2),
+          y: Math.round((dimensions.height - h) / 2),
+          width: w,
+          height: h,
+          rotation: 0,
+          opacity: 1,
+          zIndex: Date.now(),
+        };
+
+        setElements((prev) => [...prev, newEl]);
+        setSelectedId(newEl.id);
+        toast.success(`Photo "${file.name}" placed on canvas!`);
+      };
+      img.src = src;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Start blank canvas (without template)
+  const handleStartBlankCanvas = () => {
+    setElements([]);
+    setCanvasBg("#ffffff");
+    setSelectedId(null);
+    setDocumentTitle("Blank Custom Design");
+    toast.info("Created blank canvas. Add text, shapes, or upload photos!");
+  };
+
+  // Fit in view
+  const handleFitInView = () => {
+    const targetZoom = Math.min(Math.round((560 / dimensions.height) * 100), 100);
+    setZoomLevel(Math.max(25, targetZoom));
+    toast.info(`Adjusted zoom to ${targetZoom}% to fit canvas in view`);
+  };
+
+  // Apply color changes / adjustments to all photos on canvas
+  const handleApplyToAllPhotos = (adjustments: PhotoAdjustments) => {
+    let count = 0;
+    setElements((prev) =>
+      prev.map((el) => {
+        if (el.type === "image") {
+          count++;
+          return {
+            ...el,
+            adjustments: {
+              ...(el.adjustments || {}),
+              ...adjustments,
+            },
+          };
+        }
+        return el;
+      })
+    );
+    if (count > 0) {
+      toast.success(`Color adjustments applied across all ${count} photos on canvas`);
+    } else {
+      toast.info("No photos on canvas to adjust");
+    }
+  };
+
+  // High Resolution Canvas Renderer (strips all selection guides/handles)
+  const renderFullCanvasAsync = async (offscreen: HTMLCanvasElement) => {
     offscreen.width = dimensions.width;
     offscreen.height = dimensions.height;
     const ctx = offscreen.getContext("2d");
@@ -335,7 +414,27 @@ export const DesignStudioPage: React.FC = () => {
     ctx.fillStyle = canvasBg;
     ctx.fillRect(0, 0, offscreen.width, offscreen.height);
 
-    // Elements sorted
+    // Preload image assets
+    const imageElements = elements.filter((el) => el.type === "image" && el.src);
+    const loadedImages = new Map<string, HTMLImageElement>();
+    await Promise.all(
+      imageElements.map(
+        (el) =>
+          new Promise<void>((resolve) => {
+            if (!el.src) return resolve();
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.onload = () => {
+              loadedImages.set(el.src!, img);
+              resolve();
+            };
+            img.onerror = () => resolve();
+            img.src = el.src;
+          })
+      )
+    );
+
+    // Elements sorted by zIndex
     const sorted = [...elements].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
     sorted.forEach((el) => {
       ctx.save();
@@ -368,6 +467,13 @@ export const DesignStudioPage: React.FC = () => {
             ctx.rect(-halfW, -halfH, el.width, el.height);
           }
           ctx.fill();
+        } else if (el.shapeType === "triangle") {
+          ctx.beginPath();
+          ctx.moveTo(0, -halfH);
+          ctx.lineTo(halfW, halfH);
+          ctx.lineTo(-halfW, halfH);
+          ctx.closePath();
+          ctx.fill();
         } else {
           ctx.fillRect(-halfW, -halfH, el.width, el.height);
         }
@@ -378,34 +484,126 @@ export const DesignStudioPage: React.FC = () => {
           ctx.stroke();
         }
       } else if (el.type === "text") {
-        ctx.font = `${el.fontWeight || "normal"} ${el.fontSize || 32}px ${
-          el.fontFamily || "Inter"
-        }, sans-serif`;
-        ctx.fillStyle = el.fill || "#ffffff";
-        ctx.textAlign = el.textAlign || "left";
+        ctx.font = `${el.fontStyle || "normal"} ${el.fontWeight || "normal"} ${
+          el.fontSize || 32
+        }px ${el.fontFamily || "Inter"}, sans-serif`;
 
         const lines = (el.text || "").split("\n");
         const lineHeight = (el.fontSize || 32) * (el.lineHeight || 1.25);
         let textX = -el.width / 2;
-        if (el.textAlign === "center") textX = 0;
-        if (el.textAlign === "right") textX = el.width / 2;
+        if (el.textAlign === "center") {
+          textX = 0;
+          ctx.textAlign = "center";
+        } else if (el.textAlign === "right") {
+          textX = el.width / 2;
+          ctx.textAlign = "right";
+        } else {
+          textX = -el.width / 2;
+          ctx.textAlign = "left";
+        }
 
         const totalTextHeight = lines.length * lineHeight;
         const startY = -totalTextHeight / 2 + (el.fontSize || 32) * 0.85;
 
+        // Background highlight
+        if (el.textBackground) {
+          ctx.save();
+          ctx.fillStyle = el.textBackground;
+          ctx.fillRect(-el.width / 2 - 8, -totalTextHeight / 2 - 4, el.width + 16, totalTextHeight + 8);
+          ctx.restore();
+        }
+
+        // Shadow
+        if (el.textShadowColor) {
+          ctx.shadowColor = el.textShadowColor;
+          ctx.shadowBlur = el.textShadowBlur || 8;
+        }
+
+        // Stroke
+        if (el.strokeColor && el.strokeWidth) {
+          ctx.strokeStyle = el.strokeColor;
+          ctx.lineWidth = el.strokeWidth;
+          lines.forEach((line, index) => {
+            ctx.strokeText(line, textX, startY + index * lineHeight);
+          });
+        }
+
+        ctx.fillStyle = el.fill || "#ffffff";
         lines.forEach((line, index) => {
           ctx.fillText(line, textX, startY + index * lineHeight);
         });
+      } else if (el.type === "image" && el.src) {
+        const img = loadedImages.get(el.src);
+        if (img) {
+          const adj = el.adjustments;
+          let filterStr = "";
+          if (adj) {
+            const b = 1 + (adj.brightness || 0) / 100;
+            const c = 1 + (adj.contrast || 0) / 100;
+            const s = 1 + (adj.saturation || 0) / 100;
+            const bl = adj.blur || 0;
+            filterStr += `brightness(${b}) contrast(${c}) saturate(${s}) blur(${bl}px) `;
+            if (adj.hueRotate) {
+              filterStr += `hue-rotate(${adj.hueRotate}deg) `;
+            }
+            if (adj.invert) {
+              filterStr += `invert(${adj.invert}%) `;
+            }
+            if (adj.grayscale) {
+              filterStr += `grayscale(${adj.grayscale}%) `;
+            }
+          }
+
+          if (el.styleMatch === "etching") {
+            filterStr += "grayscale(100%) contrast(160%) ";
+          } else if (el.styleMatch === "scrapbook") {
+            filterStr += "sepia(45%) contrast(120%) ";
+          } else if (el.styleMatch === "cyberpunk") {
+            filterStr += "hue-rotate(180deg) saturate(220%) ";
+          } else if (el.styleMatch === "duotone") {
+            filterStr += "sepia(80%) hue-rotate(280deg) saturate(180%) ";
+          }
+
+          if (filterStr) {
+            ctx.filter = filterStr.trim();
+          }
+
+          ctx.drawImage(img, -el.width / 2, -el.height / 2, el.width, el.height);
+          ctx.filter = "none";
+
+          if (adj && adj.colorTint && adj.colorTintIntensity) {
+            ctx.save();
+            ctx.globalCompositeOperation = "color";
+            ctx.fillStyle = adj.colorTint;
+            ctx.globalAlpha = (adj.colorTintIntensity / 100) * 0.75;
+            ctx.fillRect(-el.width / 2, -el.height / 2, el.width, el.height);
+            ctx.restore();
+          }
+        }
       }
 
       ctx.restore();
     });
+  };
 
-    const link = document.createElement("a");
-    link.download = `${documentTitle.replace(/\s+/g, "-").toLowerCase()}.png`;
-    link.href = offscreen.toDataURL("image/png");
-    link.click();
-    toast.success("Downloaded high-resolution PNG");
+  // High Resolution Export Pipeline (strips all selection guides/handles)
+  const handleDownloadPNG = async () => {
+    setIsProcessing(true);
+    try {
+      const offscreen = document.createElement("canvas");
+      await renderFullCanvasAsync(offscreen);
+
+      const link = document.createElement("a");
+      link.download = `${documentTitle.replace(/\s+/g, "-").toLowerCase()}.png`;
+      link.href = offscreen.toDataURL("image/png");
+      link.click();
+      toast.success("Downloaded high-resolution PNG");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to export PNG");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   // Add to Video Timeline Pipeline (Supports both static snapshot and animated motion scene)
@@ -417,13 +615,7 @@ export const DesignStudioPage: React.FC = () => {
       }
 
       const offscreen = document.createElement("canvas");
-      offscreen.width = dimensions.width;
-      offscreen.height = dimensions.height;
-      const ctx = offscreen.getContext("2d");
-      if (!ctx) return;
-
-      ctx.fillStyle = canvasBg;
-      ctx.fillRect(0, 0, offscreen.width, offscreen.height);
+      await renderFullCanvasAsync(offscreen);
 
       const blob = await new Promise<Blob | null>((resolve) =>
         offscreen.toBlob((b) => resolve(b), "image/png", 1.0)
@@ -517,6 +709,9 @@ export const DesignStudioPage: React.FC = () => {
           dimensions={dimensions}
           zoomLevel={zoomLevel}
           onZoomChange={setZoomLevel}
+          onUploadPhoto={handleUploadDirectPhoto}
+          onStartBlank={handleStartBlankCanvas}
+          onFitInView={handleFitInView}
           currentTime={currentTime}
           pageAnimation={pageAnimation}
           isPlayingAnimation={isPlayingAnimation}
@@ -539,6 +734,12 @@ export const DesignStudioPage: React.FC = () => {
           canvasBg={canvasBg}
           onUpdateCanvasBg={setCanvasBg}
           totalElementsCount={elements.length}
+          canvasWidth={dimensions.width}
+          canvasHeight={dimensions.height}
+          onUploadPhoto={handleUploadDirectPhoto}
+          onStartBlank={handleStartBlankCanvas}
+          onFitInView={handleFitInView}
+          onApplyToAllPhotos={handleApplyToAllPhotos}
         />
       </div>
     </div>

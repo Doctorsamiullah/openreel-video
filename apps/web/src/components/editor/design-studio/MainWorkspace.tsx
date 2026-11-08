@@ -7,16 +7,21 @@ import {
   Play,
   RotateCcw,
   Sliders,
-  Scissors,
   Sparkles,
   FlipHorizontal,
   FlipVertical,
   Video,
   Layers,
+  Upload,
+  FilePlus,
+  Eye,
+  Trash2,
+  AlignCenter,
 } from "@/icons/lucide-compat";
 import { DesignElement, CanvasDimensions, PageAnimationConfig } from "./types";
 import { FloatingActionBar } from "./FloatingActionBar";
 import { computeElementAnimation } from "./animation/animation-engine";
+import { toast } from "../../../stores/notification-store";
 
 interface MainWorkspaceProps {
   elements: DesignElement[];
@@ -36,6 +41,9 @@ interface MainWorkspaceProps {
   dimensions: CanvasDimensions;
   zoomLevel: number;
   onZoomChange: (zoom: number) => void;
+  onUploadPhoto?: (file: File) => void;
+  onStartBlank?: () => void;
+  onFitInView?: () => void;
 
   // Animation playback
   currentTime?: number;
@@ -66,6 +74,9 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   dimensions,
   zoomLevel,
   onZoomChange,
+  onUploadPhoto,
+  onStartBlank,
+  onFitInView,
   currentTime = 0,
   pageAnimation = { preset: "none", duration: 5.0 },
   isPlayingAnimation = false,
@@ -75,6 +86,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const imageCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
 
   // Interaction dragging states
@@ -115,7 +127,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
     });
   }, [elements]);
 
-  // Canvas Renderer (With Real-Time Motion, Style Matches & Photoshop Filters)
+  // Canvas Renderer (With Real-Time Motion, Style Matches, Color Tint & Photoshop Filters)
   const renderCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -189,29 +201,64 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
           ctx.stroke();
         }
       }
-      // Render Text (with Typewriter letter-reveal animation)
+      // Render Text (with Justification, Typewriter animation & styling)
       else if (el.type === "text") {
-        ctx.font = `${el.fontWeight || "normal"} ${el.fontSize || 32}px ${
-          el.fontFamily || "Inter"
-        }, sans-serif`;
-        ctx.fillStyle = el.fill || "#ffffff";
-        ctx.textAlign = el.textAlign || "left";
+        ctx.font = `${el.fontStyle || "normal"} ${el.fontWeight || "normal"} ${
+          el.fontSize || 32
+        }px ${el.fontFamily || "Inter"}, sans-serif`;
 
-        const textToRender = animTransform.visibleText !== undefined ? animTransform.visibleText : (el.text || "");
+        const textToRender =
+          animTransform.visibleText !== undefined ? animTransform.visibleText : el.text || "";
         const lines = textToRender.split("\n");
         const lineHeight = (el.fontSize || 32) * (el.lineHeight || 1.25);
         let textX = -el.width / 2;
-        if (el.textAlign === "center") textX = 0;
-        if (el.textAlign === "right") textX = el.width / 2;
+
+        if (el.textAlign === "center") {
+          textX = 0;
+          ctx.textAlign = "center";
+        } else if (el.textAlign === "right") {
+          textX = el.width / 2;
+          ctx.textAlign = "right";
+        } else if (el.textAlign === "justify") {
+          textX = -el.width / 2;
+          ctx.textAlign = "left";
+        } else {
+          textX = -el.width / 2;
+          ctx.textAlign = "left";
+        }
 
         const totalTextHeight = lines.length * lineHeight;
         const startY = -totalTextHeight / 2 + (el.fontSize || 32) * 0.85;
 
+        // Text Background Highlight
+        if (el.textBackground) {
+          ctx.save();
+          ctx.fillStyle = el.textBackground;
+          ctx.fillRect(-el.width / 2 - 8, -totalTextHeight / 2 - 4, el.width + 16, totalTextHeight + 8);
+          ctx.restore();
+        }
+
+        // Text Shadow
+        if (el.textShadowColor) {
+          ctx.shadowColor = el.textShadowColor;
+          ctx.shadowBlur = el.textShadowBlur || 8;
+        }
+
+        // Text Stroke / Outline
+        if (el.strokeColor && el.strokeWidth) {
+          ctx.strokeStyle = el.strokeColor;
+          ctx.lineWidth = el.strokeWidth;
+          lines.forEach((line, index) => {
+            ctx.strokeText(line, textX, startY + index * lineHeight);
+          });
+        }
+
+        ctx.fillStyle = el.fill || "#ffffff";
         lines.forEach((line, index) => {
           ctx.fillText(line, textX, startY + index * lineHeight);
         });
       }
-      // Render Image with Photoshop filters & Style Match
+      // Render Image with Photoshop filters, Hue Shift & Color Wash
       else if (el.type === "image" && el.src) {
         const img = imageCacheRef.current.get(el.src);
         if (img && img.complete) {
@@ -224,6 +271,17 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             const s = 1 + (adj.saturation || 0) / 100;
             const bl = adj.blur || 0;
             filterStr += `brightness(${b}) contrast(${c}) saturate(${s}) blur(${bl}px) `;
+
+            // Hue Rotate Color Shift (User Request)
+            if (adj.hueRotate) {
+              filterStr += `hue-rotate(${adj.hueRotate}deg) `;
+            }
+            if (adj.invert) {
+              filterStr += `invert(${adj.invert}%) `;
+            }
+            if (adj.grayscale) {
+              filterStr += `grayscale(${adj.grayscale}%) `;
+            }
           }
 
           // Apply Style Match
@@ -243,6 +301,16 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
 
           ctx.drawImage(img, -el.width / 2, -el.height / 2, el.width, el.height);
           ctx.filter = "none";
+
+          // Color Wash / Tint Overlay (User Request)
+          if (adj && adj.colorTint && adj.colorTintIntensity) {
+            ctx.save();
+            ctx.globalCompositeOperation = "color";
+            ctx.fillStyle = adj.colorTint;
+            ctx.globalAlpha = (adj.colorTintIntensity / 100) * 0.75;
+            ctx.fillRect(-el.width / 2, -el.height / 2, el.width, el.height);
+            ctx.restore();
+          }
 
           // Warmth / Tint overlay
           if (adj && (adj.warmth || adj.tint)) {
@@ -417,20 +485,76 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
 
   const zoomFactor = zoomLevel / 100;
 
+  // Autofit / Center Helper
+  const handleFitSelected = () => {
+    if (!selectedElement) return;
+    const padding = 60;
+    const targetW = dimensions.width - padding * 2;
+    const targetH = dimensions.height - padding * 2;
+    const ratio = (selectedElement.width || 400) / (selectedElement.height || 400);
+
+    let newW = targetW;
+    let newH = targetW / ratio;
+    if (newH > targetH) {
+      newH = targetH;
+      newW = targetH * ratio;
+    }
+
+    onUpdateElement(selectedElement.id, {
+      x: Math.round((dimensions.width - newW) / 2),
+      y: Math.round((dimensions.height - newH) / 2),
+      width: Math.round(newW),
+      height: Math.round(newH),
+    });
+    toast.info("Fitted element within canvas");
+  };
+
+  const handleFillSelected = () => {
+    if (!selectedElement) return;
+    onUpdateElement(selectedElement.id, {
+      x: 0,
+      y: 0,
+      width: dimensions.width,
+      height: dimensions.height,
+    });
+    toast.info("Filled entire canvas");
+  };
+
+  const handleCenterSelected = () => {
+    if (!selectedElement) return;
+    onUpdateElement(selectedElement.id, {
+      x: Math.round((dimensions.width - selectedElement.width) / 2),
+      y: Math.round((dimensions.height - selectedElement.height) / 2),
+    });
+    toast.info("Centered element");
+  };
+
   return (
     <div className="relative flex flex-1 flex-col overflow-hidden bg-bg-3 select-none">
-      {/* ── Canva Contextual Top Action Bar (Screenshot 3 & 4) ── */}
-      <div className="flex h-12 items-center justify-between border-b border-border bg-bg-2 px-5 shrink-0 shadow-xs">
+      {/* Hidden File Input for Direct Photo Upload */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file && onUploadPhoto) onUploadPhoto(file);
+        }}
+        accept="image/*"
+        className="hidden"
+      />
+
+      {/* ── Contextual Top Action Bar ── */}
+      <div className="flex h-12 items-center justify-between border-b border-border bg-bg-2 px-4 shrink-0 shadow-xs">
         {selectedElement ? (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 flex-wrap">
             {/* Edit Image Button */}
             {selectedElement.type === "image" && (
               <button
                 type="button"
                 onClick={onOpenEditImage || onOpenPhotoAdjustments}
-                className="flex items-center gap-1.5 rounded-lg border border-purple-500/40 bg-purple-500/10 px-3 py-1.5 text-xs font-bold text-purple-400 hover:bg-purple-500/20 transition-all"
+                className="flex items-center gap-1.5 rounded-lg border border-purple-500/40 bg-purple-500/10 px-2.5 py-1 text-xs font-bold text-purple-400 hover:bg-purple-500/20 transition-all"
               >
-                <Sliders size={14} />
+                <Sliders size={13} />
                 <span>Edit image</span>
               </button>
             )}
@@ -440,25 +564,44 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               <button
                 type="button"
                 onClick={onDeconstructCurrentPoster}
-                className="flex items-center gap-1.5 rounded-lg border border-pink-500/40 bg-pink-500/10 px-3 py-1.5 text-xs font-bold text-pink-400 hover:bg-pink-500/20 transition-all"
+                className="flex items-center gap-1.5 rounded-lg border border-pink-500/40 bg-pink-500/10 px-2.5 py-1 text-xs font-bold text-pink-400 hover:bg-pink-500/20 transition-all"
                 title="Deconstruct image into editable layers"
               >
-                <Layers size={14} />
+                <Layers size={13} />
                 <span>Magic Layers</span>
               </button>
             )}
 
-            {/* BG Remover */}
-            {selectedElement.type === "image" && (
-              <button
-                type="button"
-                onClick={onOpenEditImage}
-                className="flex items-center gap-1.5 rounded-lg border border-border bg-bg-3 px-2.5 py-1.5 text-xs font-semibold text-fg-muted hover:text-fg hover:bg-bg-4 transition-all"
-              >
-                <Scissors size={13} />
-                <span>BG Remover</span>
-              </button>
-            )}
+            {/* Autofit & Alignment Buttons (User Request) */}
+            <button
+              type="button"
+              onClick={handleFitSelected}
+              className="flex items-center gap-1 rounded-lg border border-border bg-bg-3 px-2 py-1 text-xs font-semibold text-fg-2 hover:text-fg hover:bg-bg-4 transition-all"
+              title="Fit to Canvas"
+            >
+              <Maximize2 size={12} />
+              <span>Fit</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleFillSelected}
+              className="flex items-center gap-1 rounded-lg border border-border bg-bg-3 px-2 py-1 text-xs font-semibold text-fg-2 hover:text-fg hover:bg-bg-4 transition-all"
+              title="Fill Canvas"
+            >
+              <Layers size={12} />
+              <span>Fill</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleCenterSelected}
+              className="flex items-center gap-1 rounded-lg border border-border bg-bg-3 px-2 py-1 text-xs font-semibold text-fg-2 hover:text-fg hover:bg-bg-4 transition-all"
+              title="Center on Canvas"
+            >
+              <AlignCenter size={12} />
+              <span>Center</span>
+            </button>
 
             {/* Flip Horizontal */}
             <button
@@ -466,11 +609,10 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               onClick={() =>
                 onUpdateElement(selectedElement.id, { flipX: !selectedElement.flipX })
               }
-              className="flex items-center gap-1 rounded-lg border border-border bg-bg-3 px-2 py-1.5 text-xs text-fg-muted hover:text-fg hover:bg-bg-4 transition-all"
+              className="flex items-center gap-1 rounded-lg border border-border bg-bg-3 px-2 py-1 text-xs text-fg-muted hover:text-fg hover:bg-bg-4 transition-all"
               title="Flip Horizontal"
             >
               <FlipHorizontal size={13} />
-              <span>Flip</span>
             </button>
 
             {/* Flip Vertical */}
@@ -479,50 +621,85 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               onClick={() =>
                 onUpdateElement(selectedElement.id, { flipV: !selectedElement.flipV })
               }
-              className="flex items-center gap-1 rounded-lg border border-border bg-bg-3 px-2 py-1.5 text-xs text-fg-muted hover:text-fg hover:bg-bg-4 transition-all"
+              className="flex items-center gap-1 rounded-lg border border-border bg-bg-3 px-2 py-1 text-xs text-fg-muted hover:text-fg hover:bg-bg-4 transition-all"
               title="Flip Vertical"
             >
               <FlipVertical size={13} />
             </button>
 
-            {/* Animate Button matching Canva */}
+            {/* Animate Button */}
             <button
               type="button"
               onClick={onOpenAnimate}
-              className="flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-bold text-amber-400 hover:bg-amber-500/20 transition-all"
+              className="flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-xs font-bold text-amber-400 hover:bg-amber-500/20 transition-all"
             >
-              <Sparkles size={14} />
+              <Sparkles size={13} />
               <span>Animate</span>
             </button>
 
-            {/* Layer Position */}
+            {/* Delete Element */}
             <button
               type="button"
-              onClick={() => onMoveLayer(selectedElement.id, "top")}
-              className="flex items-center gap-1 rounded-lg border border-border bg-bg-3 px-2.5 py-1.5 text-xs font-semibold text-fg-muted hover:text-fg hover:bg-bg-4 transition-all"
+              onClick={() => onDeleteElement(selectedElement.id)}
+              className="flex items-center gap-1 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-xs font-bold text-rose-400 hover:bg-rose-500/20 transition-all"
+              title="Delete element"
             >
-              <span>Position</span>
+              <Trash2 size={12} />
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-3 text-xs text-fg-muted font-medium">
-            <span>Canvas: {dimensions.width} × {dimensions.height} px</span>
+          /* When Nothing is Selected: Canvas Quick Tools */
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 px-3 py-1 text-xs font-bold text-white shadow-xs hover:from-purple-500 hover:to-pink-500 transition-all"
+              title="Upload photo onto canvas"
+            >
+              <Upload size={13} />
+              <span>Upload Photo</span>
+            </button>
+
+            {onStartBlank && (
+              <button
+                type="button"
+                onClick={onStartBlank}
+                className="flex items-center gap-1 rounded-lg border border-border bg-bg-3 px-2.5 py-1 text-xs font-semibold text-fg-2 hover:text-fg hover:bg-bg-4 transition-all"
+                title="Start blank canvas without template"
+              >
+                <FilePlus size={12} className="text-purple-400" />
+                <span>Blank Canvas</span>
+              </button>
+            )}
+
+            {onFitInView && (
+              <button
+                type="button"
+                onClick={onFitInView}
+                className="flex items-center gap-1 rounded-lg border border-border bg-bg-3 px-2.5 py-1 text-xs font-semibold text-fg-2 hover:text-fg hover:bg-bg-4 transition-all"
+                title="Fit entire poster in view"
+              >
+                <Eye size={12} />
+                <span>Fit in View</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={onOpenAnimate}
-              className="flex items-center gap-1.5 rounded-lg border border-purple-500/40 bg-purple-500/10 px-3 py-1 text-xs font-bold text-purple-400 hover:bg-purple-500/20 transition-all"
+              className="flex items-center gap-1 rounded-lg border border-purple-500/30 bg-purple-500/10 px-2.5 py-1 text-xs font-bold text-purple-400 hover:bg-purple-500/20 transition-all"
             >
-              <Sparkles size={13} />
-              <span>Animate Canvas</span>
+              <Sparkles size={12} />
+              <span>Animate Design</span>
             </button>
           </div>
         )}
 
         {/* Viewport Zoom Controls */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
-            onClick={() => onZoomChange(Math.max(20, zoomLevel - 10))}
+            onClick={() => onZoomChange(Math.max(15, zoomLevel - 10))}
             className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-bg-3 text-fg-muted hover:text-fg"
             title="Zoom Out"
           >
@@ -541,23 +718,23 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => onZoomChange(45)}
+            onClick={onFitInView || (() => onZoomChange(38))}
             className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-bg-3 text-fg-muted hover:text-fg"
-            title="Fit to Screen"
+            title="Fit Poster in View"
           >
             <Maximize2 size={13} />
           </button>
         </div>
       </div>
 
-      {/* ── Central Scrollable / Pannable Workspace ── */}
+      {/* ── Central Scrollable Workspace (Fixed Top Scroll Clipping via m-auto) ── */}
       <div
         ref={containerRef}
         onClick={handleCanvasClick}
-        className="relative flex flex-1 items-center justify-center overflow-auto p-12 bg-bg-3/50"
+        className="relative flex flex-1 overflow-auto p-8 bg-bg-3/50"
       >
         <div
-          className="relative shadow-2xl transition-all duration-75 ease-out select-none"
+          className="relative m-auto shadow-2xl transition-all duration-75 ease-out select-none"
           style={{
             width: dimensions.width * zoomFactor,
             height: dimensions.height * zoomFactor,
