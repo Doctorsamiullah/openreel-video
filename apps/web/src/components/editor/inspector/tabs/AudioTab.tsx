@@ -8,6 +8,7 @@ import {
   AudioDuckingSection,
 } from "../";
 import { VoiceOverPanel } from "../VoiceOverPanel";
+import { StemSeparationPanel } from "../StemSeparationPanel";
 import { InspectorSection } from "../shell/InspectorSection";
 import { PropertySlider } from "../shell/PropertySlider";
 
@@ -125,6 +126,15 @@ export const AudioTab: React.FC<AudioTabProps> = ({
           defaultOpen={false}
         >
           <AudioDuckingSection clipId={clipId} />
+        </InspectorSection>
+      )}
+      {showAudioEffects && (
+        <InspectorSection
+          title="Stem Separation — Music & Voice"
+          sectionId="stem-separation"
+          defaultOpen={false}
+        >
+          <StemSeparationPanel />
         </InspectorSection>
       )}
     </>

@@ -11,8 +11,8 @@ export function AstryxProvider({
 }: {
   children: JSX.Element;
 }): JSX.Element {
-  const mode = useThemeStore((state) => state.mode);
-  const astryxMode = mode === "auto" ? "system" : mode;
+  const isDark = useThemeStore((state) => state.isDark);
+  const astryxMode = isDark ? "dark" : "light";
 
   return (
     <Theme theme={neutralTheme} mode={astryxMode}>

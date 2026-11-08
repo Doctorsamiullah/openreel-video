@@ -8,6 +8,8 @@ import { AutoCaptionPanel } from "../AutoCaptionPanel";
 import { CaptionEditorPanel } from "../CaptionEditorPanel";
 import { AutoEditPanel } from "../../panels/AutoEditPanel";
 import { HighlightExtractorPanel } from "../../panels/HighlightExtractorPanel";
+import { VoiceTranslationPanel } from "../VoiceTranslationPanel";
+import { EditingPresetsPanel } from "../EditingPresetsPanel";
 import { InspectorSection } from "../shell/InspectorSection";
 
 export interface AiTabProps {
@@ -192,6 +194,26 @@ export const AiTab: React.FC<AiTabProps> = ({
           </div>
         </Card>
       )}
+
+      {/* Voice Translation */}
+      {(clipType === "video" || clipType === "audio") && showAudioEffects && (
+        <InspectorSection
+          title="Voice Translation & Dub"
+          sectionId="voice-translation"
+          defaultOpen={false}
+        >
+          <VoiceTranslationPanel />
+        </InspectorSection>
+      )}
+
+      {/* Editing Presets */}
+      <InspectorSection
+        title="Editing Presets Library"
+        sectionId="editing-presets"
+        defaultOpen={false}
+      >
+        <EditingPresetsPanel />
+      </InspectorSection>
     </>
   );
 };

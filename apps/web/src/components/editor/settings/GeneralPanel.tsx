@@ -9,6 +9,7 @@ import { ToolcraftTextInputControl as TextInput } from "@openreel/ui";
 import { useSettingsStore, SERVICE_REGISTRY, type TtsProvider, type LlmProvider, type AggregatorProvider } from "../../../stores/settings-store";
 import { useProjectStore } from "../../../stores/project-store";
 import { EDITING_FRAME_RATE_OPTIONS } from "../editing-frame-rate";
+import { ThemePickerPanel } from "./ThemePickerPanel";
 
 const ASPECT_PRESETS: Array<{ label: string; width: number; height: number }> = [
   { label: "16:9 Landscape (1080p)", width: 1920, height: 1080 },
@@ -105,6 +106,14 @@ export const GeneralPanel: React.FC = () => {
   );
   return (
     <div className="space-y-6 pb-4">
+      {/* Theme */}
+      <div className="space-y-3">
+        <Text type="body" color="primary" className="text-sm font-medium">
+          App Theme
+        </Text>
+        <ThemePickerPanel />
+      </div>
+
       {/* Project Composition */}
       <div className="space-y-4">
         <div>

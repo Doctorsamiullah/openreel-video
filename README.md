@@ -39,8 +39,8 @@ Connect your own OpenAI, Anthropic, or compatible endpoint to make reversible ti
 
 ## Start editing in minutes
 
-1. **[Open OpenReel](https://openreel.video)** and create a project.
-2. **Import your media** and drag clips onto the timeline.
+1. **[Open OpenReel](https://openreel.video)** and choose **Edit a video** to select a clip. OpenReel creates a project that matches the video and places it on the timeline.
+2. Or choose a vertical, horizontal, or square format to start a blank project.
 3. **Shape your edit** with cuts, captions, music, color, and transitions.
 4. **Export your video** using a preset or your own settings.
 

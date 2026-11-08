@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, lazy, Suspense } from "react";
+import { useState, useCallback, useEffect, useRef, lazy, Suspense } from "react";
 import {
   Clock,
   Layers,
@@ -14,6 +14,7 @@ import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
 import { ToolcraftText as Text } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
+import { toast } from "../../stores/notification-store";
 import { SOCIAL_MEDIA_PRESETS, type SocialMediaCategory } from "@openreel/core";
 import { useRouter } from "../../hooks/use-router";
 import { useEditorPreload } from "../../hooks/useEditorPreload";
@@ -149,11 +150,16 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
   );
   const skipWelcomeScreen = useUIStore((state) => state.skipWelcomeScreen);
   const createNewProject = useProjectStore((state) => state.createNewProject);
+  const importMedia = useProjectStore((state) => state.importMedia);
+  const updateSettings = useProjectStore((state) => state.updateSettings);
+  const placeMediaClip = useProjectStore((state) => state.placeMediaClip);
   const { navigate } = useRouter();
   const { track } = useAnalytics();
 
   const [viewMode, setViewMode] = useState<ViewMode>(initialTab ?? "home");
   const [hoveredFormat, setHoveredFormat] = useState<string | null>(null);
+  const [preparingVideoName, setPreparingVideoName] = useState<string | null>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
 
   useEditorPreload(true);
 
@@ -175,6 +181,77 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
       navigate("editor");
     },
     [createNewProject, navigate, track],
+  );
+
+  const handleVideoSelected = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.currentTarget.files?.[0];
+      event.currentTarget.value = "";
+      if (!file) return;
+
+      if (!file.type.startsWith("video/")) {
+        toast.error("Choose a video file", "Select a video such as MP4 or MOV to start editing.");
+        return;
+      }
+
+      setPreparingVideoName(file.name);
+      const projectName = file.name.replace(/\.[^.]+$/, "").trim() || "New Video";
+      createNewProject(projectName, { width: 1920, height: 1080, frameRate: 30 });
+
+      try {
+        const importResult = await importMedia(file);
+        if (!importResult.success || !importResult.actionId) {
+          toast.error(
+            "Could not import video",
+            importResult.error?.message ?? "Choose another video file and try again.",
+          );
+          return;
+        }
+
+        const mediaItem = useProjectStore.getState().getMediaItem(importResult.actionId);
+        if (!mediaItem || mediaItem.type !== "video") {
+          toast.error("Could not prepare video", "The selected file was not recognized as a video.");
+          return;
+        }
+
+        const frameRate = mediaItem.metadata.frameRate;
+        const settingsResult = await updateSettings({
+          width: mediaItem.metadata.width > 0 ? mediaItem.metadata.width : 1920,
+          height: mediaItem.metadata.height > 0 ? mediaItem.metadata.height : 1080,
+          frameRate:
+            Number.isFinite(frameRate) && frameRate >= 1 && frameRate <= 120
+              ? frameRate
+              : 30,
+        });
+        if (!settingsResult.success) {
+          toast.error(
+            "Could not match project settings",
+            settingsResult.error?.message ?? "The video was imported, but its canvas settings could not be applied.",
+          );
+          return;
+        }
+
+        const placementResult = await placeMediaClip(mediaItem.id, undefined, 0);
+        if (!placementResult.success) {
+          toast.error(
+            "Video imported, but not added to the timeline",
+            placementResult.error?.message ?? "Open Media in the editor and add the clip to the timeline.",
+          );
+          return;
+        }
+
+        toast.success("Video ready to edit", "Your clip is on the timeline.");
+      } catch (error) {
+        toast.error(
+          "Could not prepare video",
+          error instanceof Error ? error.message : "Try importing the video from the editor.",
+        );
+      } finally {
+        setPreparingVideoName(null);
+        navigate("editor");
+      }
+    },
+    [createNewProject, importMedia, navigate, placeMediaClip, updateSettings],
   );
 
   const handleTemplateApplied = useCallback(() => {
@@ -277,9 +354,41 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
               In your browser.
             </Text>
             <Text type="supporting" color="secondary" className="text-base text-text-muted max-w-md">
-              Pick a format and start creating. You can change this anytime.
+              Start with a video, or choose a format for a new project.
             </Text>
           </div>
+
+          <div className="flex flex-col items-center gap-2 mb-8">
+            <input
+              ref={videoInputRef}
+              type="file"
+              accept="video/*"
+              aria-label="Choose a video to edit"
+              className="hidden"
+              onChange={handleVideoSelected}
+            />
+            <Button
+              label={preparingVideoName ? "Preparing your video…" : "Edit a video"}
+              variant="primary"
+              icon={<FolderOpen size={18} aria-hidden />}
+              disabled={preparingVideoName !== null}
+              onClick={() => videoInputRef.current?.click()}
+              className="rounded-xl"
+            />
+            {preparingVideoName ? (
+              <Text type="supporting" color="secondary" className="text-sm text-text-muted" role="status">
+                Preparing {preparingVideoName} for editing…
+              </Text>
+            ) : (
+              <Text type="supporting" color="secondary" className="text-sm text-text-muted">
+                We’ll fit the project to your video and add it to the timeline.
+              </Text>
+            )}
+          </div>
+
+          <Text type="supporting" color="secondary" className="block text-center text-sm text-text-muted mb-3">
+            Or start a project by format
+          </Text>
 
           <div className="grid grid-cols-3 gap-4 mb-10">
             {FORMAT_OPTIONS.map((option) => {

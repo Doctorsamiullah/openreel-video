@@ -32,12 +32,13 @@ import {
 const CAPTION_STYLE_PRESETS = ["default", "modern", "bold", "cinematic", "minimal"] as const;
 const WHISPER_LANGUAGES = [
   { code: "en", name: "English" },
+  { code: "hi", name: "Hindi" },
+  { code: "ur", name: "Urdu" },
   { code: "fr", name: "French" },
   { code: "de", name: "German" },
   { code: "es", name: "Spanish" },
   { code: "it", name: "Italian" },
   { code: "pt", name: "Portuguese" },
-  { code: "hi", name: "Hindi" },
   { code: "ja", name: "Japanese" },
   { code: "ko", name: "Korean" },
   { code: "zh", name: "Chinese" },
