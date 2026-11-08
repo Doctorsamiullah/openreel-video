@@ -25,6 +25,12 @@ const SearchModal = lazy(() =>
 const SharePage = lazy(() =>
   import("./pages/SharePage").then((m) => ({ default: m.SharePage })),
 );
+const PhotoEditorPage = lazy(() =>
+  import("./pages/PhotoEditorPage").then((m) => ({ default: m.PhotoEditorPage })),
+);
+const DesignStudioPage = lazy(() =>
+  import("./pages/DesignStudioPage").then((m) => ({ default: m.DesignStudioPage })),
+);
 const LoadingSpinner: React.FC<{ message: string }> = ({ message }) => (
   <div className="h-screen w-screen bg-background flex flex-col items-center justify-center">
     <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin mb-3" />
@@ -57,6 +63,8 @@ function App() {
   const showWelcome =
     ["welcome", "templates", "recent"].includes(route) && !skipWelcomeScreen;
   const isSharePage = route === "share" && params.shareId;
+  const isPhotoEditor = route === "photo-editor";
+  const isDesignStudio = route === "design-studio";
 
   useEffect(() => {
     if (activeModal === "scriptView") setHasOpenedScriptView(true);
@@ -126,9 +134,9 @@ function App() {
   useEffect(() => {
     // Recovery owns the choice until it settles. A bare editor URL still needs
     // a real project for autosave and preview-proxy lifecycle subscriptions.
-    if (showWelcome || isSharePage || route === "new" || isChecking || showDialog || isRecovering || hasOpenProject) return;
+    if (showWelcome || isSharePage || isPhotoEditor || isDesignStudio || route === "new" || isChecking || showDialog || isRecovering || hasOpenProject) return;
     createNewProject("New Project");
-  }, [showWelcome, isSharePage, route, isChecking, showDialog, isRecovering, hasOpenProject, createNewProject]);
+  }, [showWelcome, isSharePage, isPhotoEditor, isDesignStudio, route, isChecking, showDialog, isRecovering, hasOpenProject, createNewProject]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -161,6 +169,14 @@ function App() {
       {isSharePage ? (
         <Suspense fallback={<LoadingSpinner message="Loading shared video..." />}>
           <SharePage shareId={params.shareId!} />
+        </Suspense>
+      ) : isPhotoEditor ? (
+        <Suspense fallback={<LoadingSpinner message="Opening Photo Editor..." />}>
+          <PhotoEditorPage />
+        </Suspense>
+      ) : isDesignStudio ? (
+        <Suspense fallback={<LoadingSpinner message="Opening Design Studio..." />}>
+          <DesignStudioPage />
         </Suspense>
       ) : showWelcome ? (
         <WelcomeScreen initialTab={initialTab} />

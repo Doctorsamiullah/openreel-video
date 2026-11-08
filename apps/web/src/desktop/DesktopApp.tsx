@@ -17,7 +17,10 @@ import { useUIStore } from "../stores/ui-store";
 import { useSettingsStore } from "../stores/settings-store";
 import { SettingsDialog } from "../components/editor/settings/SettingsDialog";
 import { ToolcraftButton as Button } from "@openreel/ui";
-import { Settings, Sparkles } from "@/icons/lucide-compat";
+import { Settings, Sparkles, Film, Image as ImageIcon, LayoutTemplate } from "@/icons/lucide-compat";
+import { useRouter } from "../hooks/use-router";
+import { PhotoEditorPage } from "../pages/PhotoEditorPage";
+import { DesignStudioPage } from "../pages/DesignStudioPage";
 import "./theme/desktop-theme.css";
 
 function detectPlatform(): string {
@@ -28,6 +31,7 @@ function detectPlatform(): string {
 
 export function DesktopApp(): JSX.Element {
   const platform = detectPlatform();
+  const { route, navigate } = useRouter();
   const hasProject = useProjectStore((state) => state.hasOpenProject);
   const agentChatVisible = useUIStore(
     (state) => state.panels.agentChat?.visible ?? false,
@@ -93,6 +97,46 @@ export function DesktopApp(): JSX.Element {
   return (
     <div className="openreel-desktop isolate flex h-screen w-screen flex-col overflow-hidden bg-bg text-fg">
       <DesktopTitleBar platform={platform}>
+        {/* Workspace Switcher */}
+        <div className="flex items-center gap-1 rounded-lg bg-bg-2 p-0.5 border border-border mr-2 shadow-inner">
+          <button
+            type="button"
+            onClick={() => navigate("editor")}
+            className={`flex items-center gap-1.5 rounded px-2.5 py-0.5 text-xs font-medium transition-all ${
+              route === "editor" || (!["photo-editor", "design-studio"].includes(route))
+                ? "bg-emerald-600 text-white font-semibold"
+                : "text-fg-2 hover:text-fg hover:bg-bg-3"
+            }`}
+          >
+            <Film size={12} />
+            <span>Video</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate("photo-editor")}
+            className={`flex items-center gap-1.5 rounded px-2.5 py-0.5 text-xs font-medium transition-all ${
+              route === "photo-editor"
+                ? "bg-pink-500 text-white font-semibold"
+                : "text-pink-400 hover:text-pink-300 hover:bg-bg-3"
+            }`}
+          >
+            <ImageIcon size={12} />
+            <span>Photo</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate("design-studio")}
+            className={`flex items-center gap-1.5 rounded px-2.5 py-0.5 text-xs font-medium transition-all ${
+              route === "design-studio"
+                ? "bg-purple-600 text-white font-semibold"
+                : "text-purple-400 hover:text-purple-300 hover:bg-bg-3"
+            }`}
+          >
+            <LayoutTemplate size={12} />
+            <span>Canva</span>
+          </button>
+        </div>
+
         {hasProject ? (
           <Button
             label="AI Editor"
@@ -125,7 +169,11 @@ export function DesktopApp(): JSX.Element {
             })
           }
         >
-          {hasProject ? (
+          {route === "photo-editor" ? (
+            <PhotoEditorPage />
+          ) : route === "design-studio" ? (
+            <DesignStudioPage />
+          ) : hasProject ? (
             <EditorBootstrapGate>
               <Workspace />
             </EditorBootstrapGate>

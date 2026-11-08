@@ -22,14 +22,14 @@ export interface ThemeDefinition {
 }
 
 export const THEME_DEFINITIONS: ThemeDefinition[] = [
-  { id: "light",         label: "Light Studio",    accent: "#10b981", dark: false },
   { id: "dark",          label: "Cinematic Dark",  accent: "#10b981", dark: true  },
-  { id: "midnight-blue", label: "Midnight Blue",   accent: "#3b82f6", dark: true  },
-  { id: "sunset-orange", label: "Sunset Orange",   accent: "#f97316", dark: true  },
-  { id: "hacker-green",  label: "Hacker Green",    accent: "#00e600", dark: true  },
-  { id: "purple-haze",   label: "Purple Haze",     accent: "#8b5cf6", dark: true  },
-  { id: "high-contrast", label: "High Contrast",   accent: "#ffd700", dark: true  },
-  { id: "rose-gold",     label: "Rose Gold",       accent: "#ec4899", dark: true  },
+  { id: "light",         label: "Light Studio",    accent: "#10b981", dark: false },
+  { id: "midnight-blue", label: "Ocean Blue",      accent: "#2563eb", dark: false },
+  { id: "sunset-orange", label: "Sunset Peach",    accent: "#ea580c", dark: false },
+  { id: "hacker-green",  label: "Botanical Mint",  accent: "#059669", dark: false },
+  { id: "purple-haze",   label: "Lavender Lilac",  accent: "#7c3aed", dark: false },
+  { id: "rose-gold",     label: "Rose Quartz",     accent: "#db2777", dark: false },
+  { id: "high-contrast", label: "Solar Gold",      accent: "#d97706", dark: false },
 ];
 
 interface ThemeState {

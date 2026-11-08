@@ -693,7 +693,7 @@ export const DesignStudioModal: React.FC<DesignStudioModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/85 backdrop-blur-md">
       <div className="flex flex-col w-[96vw] h-[94vh] max-w-7xl bg-bg-1 border border-border rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Top Navigation Bar */}
         <div className="h-14 flex items-center justify-between px-5 border-b border-border bg-bg-2 shrink-0">

@@ -255,7 +255,7 @@ export const PhotoEditorModal: React.FC<PhotoEditorModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/85 backdrop-blur-md">
       <div className="flex flex-col w-[94vw] h-[92vh] max-w-7xl bg-bg-1 border border-border rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Top Header */}
         <div className="h-14 flex items-center justify-between px-5 border-b border-border bg-bg-2 shrink-0">

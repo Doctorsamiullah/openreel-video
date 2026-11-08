@@ -30,8 +30,7 @@ import { AutoVideoPanel } from "./panels/AutoVideoPanel";
 import { GenerativeVideoPanel } from "./panels/GenerativeVideoPanel";
 import { ShortsMakerPanel } from "./panels/ShortsMakerPanel";
 import { PhotoToVideoPanel } from "./panels/PhotoToVideoPanel";
-import { PhotoEditorModal } from "./modals/PhotoEditorModal";
-import { DesignStudioModal } from "./modals/DesignStudioModal";
+import { useRouter } from "../../hooks/use-router";
 import { useTtsAudioStore } from "../../stores/tts-store";
 import { toast } from "../../stores/notification-store";
 
@@ -131,8 +130,7 @@ const FeatureSection: React.FC<FeatureSectionProps> = ({ title, icon: Icon, chil
 
 export const AIGenTab: React.FC = () => {
   const [activeFeature, setActiveFeature] = useState<FeatureId>(null);
-  const [isPhotoEditorOpen, setIsPhotoEditorOpen] = useState(false);
-  const [isDesignStudioOpen, setIsDesignStudioOpen] = useState(false);
+  const { navigate } = useRouter();
   const ttsHasUnsaved = useTtsAudioStore((s) => s.generatedAudio !== null && !s.isAudioSaved);
 
   const navigateAway = useCallback((next: FeatureId) => {
@@ -284,26 +282,26 @@ export const AIGenTab: React.FC = () => {
           <FeatureCard
             icon={LayoutTemplate}
             title="Design Studio (Canva Clone)"
-            description="Templates, social posts, flyers, stickers & 1-click timeline sync"
+            description="Dedicated full-page layout engine, social posts, flyers, stickers & timeline sync"
             iconColor="text-purple-400"
             iconBg="bg-purple-500/20"
             activeBorder="border-purple-500/50"
             activeBg="bg-purple-500/10"
             activeRing="ring-purple-500/30"
             isActive={false}
-            onClick={() => setIsDesignStudioOpen(true)}
+            onClick={() => navigate("design-studio")}
           />
           <FeatureCard
             icon={ImageIcon}
             title="Integrated Photo Editor"
-            description="Non-destructive retouching, color grading, crop/rotate & filters"
+            description="Dedicated full-page non-destructive retouching, color grading, crop/rotate & filters"
             iconColor="text-pink-400"
             iconBg="bg-pink-500/20"
             activeBorder="border-pink-500/50"
             activeBg="bg-pink-500/10"
             activeRing="ring-pink-500/30"
             isActive={false}
-            onClick={() => setIsPhotoEditorOpen(true)}
+            onClick={() => navigate("photo-editor")}
           />
         </FeatureSection>
 
@@ -370,18 +368,6 @@ export const AIGenTab: React.FC = () => {
           </Text>
         </div>
       </div>
-
-      {/* Integrated Photo Editor Modal */}
-      <PhotoEditorModal
-        isOpen={isPhotoEditorOpen}
-        onClose={() => setIsPhotoEditorOpen(false)}
-      />
-
-      {/* Canva-Grade Design Studio Modal */}
-      <DesignStudioModal
-        isOpen={isDesignStudioOpen}
-        onClose={() => setIsDesignStudioOpen(false)}
-      />
     </div>
   );
 };

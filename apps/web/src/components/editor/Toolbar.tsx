@@ -4,12 +4,12 @@ import {
   Settings,
   MoreHorizontal,
   Video,
+  Film,
   BookOpen,
   LayoutTemplate,
   Image as ImageIcon,
 } from "@/icons/lucide-compat";
-import { PhotoEditorModal } from "./modals/PhotoEditorModal";
-import { DesignStudioModal } from "./modals/DesignStudioModal";
+import { useRouter } from "../../hooks/use-router";
 import { useSettingsStore } from "../../stores/settings-store";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
@@ -71,8 +71,7 @@ export const Toolbar: React.FC = () => {
   }, []);
   const aiMode = useUIStore((s) => s.panels.agentChat?.visible ?? false);
   const [isCompressOpen, setIsCompressOpen] = useState(false);
-  const [isPhotoEditorOpen, setIsPhotoEditorOpen] = useState(false);
-  const [isDesignStudioOpen, setIsDesignStudioOpen] = useState(false);
+  const { navigate } = useRouter();
   const importMedia = useProjectStore((state) => state.importMedia);
   const sourceMatch = useMemo(() => deriveSourceExportMatch(project), [project]);
   const hasTimelineContent = (project.timeline?.duration ?? 0) > 0;
@@ -427,6 +426,35 @@ export const Toolbar: React.FC = () => {
           className="max-w-[min(220px,40vw)] bg-transparent border-0 text-center font-medium text-[14px] tracking-tight text-fg-2 px-2 py-0.5 rounded-md min-w-[60px] focus:bg-bg-2 focus:outline-none"
         />
         </div>
+        {/* Global Studio Workspace Switcher */}
+        <div className="hidden lg:flex items-center gap-1 rounded-lg bg-bg-2 p-1 border border-border shadow-inner ml-2">
+          <button
+            type="button"
+            className="flex items-center gap-1.5 rounded-md bg-emerald-600 text-white px-2.5 py-1 text-xs font-semibold shadow-sm transition-all"
+            title="Video Editor Active"
+          >
+            <Film size={12} />
+            <span>Video Editor</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate("photo-editor")}
+            className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium text-pink-400 hover:text-pink-300 hover:bg-bg-1 transition-all"
+            title="Switch to Full-Page Photo Editor"
+          >
+            <ImageIcon size={12} />
+            <span>Photo Editor</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate("design-studio")}
+            className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium text-purple-400 hover:text-purple-300 hover:bg-bg-1 transition-all"
+            title="Switch to Full-Page Canva Graphic Design Studio"
+          >
+            <LayoutTemplate size={12} />
+            <span>Design Studio</span>
+          </button>
+        </div>
         <ProjectSwitcher />
       </div>
 
@@ -435,9 +463,9 @@ export const Toolbar: React.FC = () => {
         {/* Photo Editor Launcher */}
         <button
           type="button"
-          onClick={() => setIsPhotoEditorOpen(true)}
+          onClick={() => navigate("photo-editor")}
           className="flex items-center gap-1.5 rounded-[8px] border border-border bg-bg-2 hover:bg-bg-3 px-3 py-[9px] text-[13px] font-medium text-pink-400 hover:text-pink-300 transition-colors mr-2 shadow-sm"
-          title="Open Integrated Photo Editor"
+          title="Open Dedicated Full-Page Photo Editor"
         >
           <ImageIcon size={15} className="text-pink-400" aria-hidden />
           <span className="font-semibold text-xs">Photo Editor</span>
@@ -446,9 +474,9 @@ export const Toolbar: React.FC = () => {
         {/* Canva Design Studio Launcher */}
         <button
           type="button"
-          onClick={() => setIsDesignStudioOpen(true)}
+          onClick={() => navigate("design-studio")}
           className="flex items-center gap-1.5 rounded-[8px] border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 px-3 py-[9px] text-[13px] font-medium text-purple-300 hover:text-purple-200 transition-colors mr-2 shadow-sm"
-          title="Open Canva-Grade Graphic Design Studio"
+          title="Open Dedicated Full-Page Canva Graphic Design Studio"
         >
           <LayoutTemplate size={15} className="text-purple-400" aria-hidden />
           <span className="font-semibold text-xs">Design Studio</span>
@@ -657,18 +685,6 @@ export const Toolbar: React.FC = () => {
           </div>
         </>
       )}
-
-      {/* Integrated Photo Editor Modal */}
-      <PhotoEditorModal
-        isOpen={isPhotoEditorOpen}
-        onClose={() => setIsPhotoEditorOpen(false)}
-      />
-
-      {/* Canva-Grade Design Studio Modal */}
-      <DesignStudioModal
-        isOpen={isDesignStudioOpen}
-        onClose={() => setIsDesignStudioOpen(false)}
-      />
     </header>
   );
 };

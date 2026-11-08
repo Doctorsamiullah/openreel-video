@@ -9,7 +9,9 @@ export type AppRoute =
   | "templates"
   | "recent"
   | "share"
-  | "motion";
+  | "motion"
+  | "photo-editor"
+  | "design-studio";
 
 export interface RouteParams {
   dimensions?: string;
@@ -49,6 +51,8 @@ function parseHash(hash: string): RouterState {
     "recent",
     "share",
     "motion",
+    "photo-editor",
+    "design-studio",
   ];
 
   if (route === "share" && pathParts[1]) {
