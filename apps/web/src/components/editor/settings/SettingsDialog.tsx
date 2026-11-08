@@ -1,5 +1,5 @@
 import React, { useCallback } from "react";
-import { Settings, Key, Plug, Bot } from "@/icons/lucide-compat";
+import { Settings, Key, Plug, Bot, BookOpen } from "@/icons/lucide-compat";
 import { Tabs, TabsList, TabsTrigger } from "@openreel/ui";
 import { ToolcraftDialog as Dialog, ToolcraftDialogHeader as DialogHeader } from "@openreel/ui";
 import { ToolcraftLayout as Layout, ToolcraftLayoutContent as LayoutContent } from "@openreel/ui";
@@ -8,6 +8,7 @@ import { GeneralPanel } from "./GeneralPanel";
 import { ApiKeysPanel } from "./ApiKeysPanel";
 import { McpPanel } from "./McpPanel";
 import { AISettingsPanel } from "./AISettingsPanel";
+import { HelpGuidePanel } from "./HelpGuidePanel";
 
 const isDesktop =
   typeof window !== "undefined" && window.openreel?.platform === "desktop";
@@ -19,6 +20,7 @@ const TABS: readonly { id: SettingsTab; label: string; icon: typeof Settings }[]
   ...(isDesktop
     ? [{ id: "mcp" as const, label: "MCP", icon: Plug }]
     : []),
+  { id: "help", label: "मदद (Help)", icon: BookOpen },
 ];
 
 export const SettingsDialog: React.FC = () => {
@@ -89,6 +91,7 @@ export const SettingsDialog: React.FC = () => {
               {settingsTab === "ai-editor" && <AISettingsPanel />}
               {settingsTab === "api-keys" && <ApiKeysPanel />}
               {settingsTab === "mcp" && <McpPanel />}
+              {settingsTab === "help" && <HelpGuidePanel />}
             </div>
           </LayoutContent>
         }
