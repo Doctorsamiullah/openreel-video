@@ -17,9 +17,11 @@ import {
   Languages,
   Loader2,
   Sparkles,
+  Trash2,
 } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
+import { toast } from "../../../stores/notification-store";
 import { loadAudioBuffer } from "../../../utils/load-audio-buffer";
 import { audioBufferToWhisperSamples } from "../../../utils/whisper-audio";
 import {
@@ -335,6 +337,24 @@ export const AutoCaptionPanel: React.FC<AutoCaptionPanelProps> = ({
     setProgressMessage(`${addedCount} single-line caption clips added`);
   }, [addSubtitle, clip, maxWordsPerLine, segments, selectedModel, selectedStyle]);
 
+  const handleRemoveAllCaptions = useCallback(async () => {
+    const { project, removeTrack } = useProjectStore.getState();
+    const captionTracks = project.timeline.tracks.filter(
+      (t) => t.role === "captions" || t.name === "Captions",
+    );
+
+    if (captionTracks.length === 0 && segments.length === 0) {
+      toast.info("No Captions", "No caption tracks found to remove.");
+      return;
+    }
+
+    for (const track of captionTracks) {
+      await removeTrack(track.id);
+    }
+    setSegments([]);
+    toast.success("Captions Removed", "All captions were removed from the timeline.");
+  }, [segments.length]);
+
   const modelStatus = useMemo(() => {
     const model = WHISPER_MODELS[selectedModel];
     if (workerState === "ready") {
@@ -496,6 +516,14 @@ export const AutoCaptionPanel: React.FC<AutoCaptionPanelProps> = ({
         onClick={handleTranscribe}
         isDisabled={!canTranscribe || isTranscribing}
         className="w-full justify-center"
+      />
+      <Button
+        label="Remove All Captions from Timeline"
+        icon={<Trash2 size={13} aria-hidden />}
+        variant="secondary"
+        size="sm"
+        onClick={handleRemoveAllCaptions}
+        className="w-full justify-center text-red-400 hover:text-red-300 hover:border-red-500/50"
       />
       {!canTranscribe && (
         <Text type="supporting" color="secondary" className="block text-center text-[9px]">
