@@ -73,6 +73,29 @@ export const AnimationPanel: React.FC<AnimationPanelProps> = ({
   const currentElementDuration = selectedElement?.animation?.duration ?? 1.2;
   const currentElementDelay = selectedElement?.animation?.delay ?? 0;
 
+  const handleSelectPagePreset = (presetId: PageAnimationConfig["preset"]) => {
+    onUpdatePageAnimation({
+      ...pageAnimation,
+      preset: presetId,
+    });
+    onResetAnimation();
+    if (!isPlaying) {
+      onTogglePlay();
+    }
+  };
+
+  const handleSelectElementPreset = (presetId: AnimationPreset) => {
+    onUpdateElementAnimation({
+      preset: presetId,
+      duration: currentElementDuration,
+      delay: currentElementDelay,
+    });
+    onResetAnimation();
+    if (!isPlaying) {
+      onTogglePlay();
+    }
+  };
+
   return (
     <div className="flex h-full w-80 flex-col border-r border-border bg-bg-1 overflow-hidden select-none">
       {/* Header */}
@@ -162,12 +185,7 @@ export const AnimationPanel: React.FC<AnimationPanelProps> = ({
                     <button
                       key={preset.id}
                       type="button"
-                      onClick={() =>
-                        onUpdatePageAnimation({
-                          ...pageAnimation,
-                          preset: preset.id,
-                        })
-                      }
+                      onClick={() => handleSelectPagePreset(preset.id)}
                       className={`flex flex-col items-start rounded-xl border p-2.5 text-left transition-all ${
                         isActive
                           ? "border-purple-500 bg-purple-500/15 ring-2 ring-purple-500/30 text-fg"
@@ -281,13 +299,7 @@ export const AnimationPanel: React.FC<AnimationPanelProps> = ({
                         <button
                           key={preset.id}
                           type="button"
-                          onClick={() =>
-                            onUpdateElementAnimation({
-                              preset: preset.id,
-                              duration: currentElementDuration,
-                              delay: currentElementDelay,
-                            })
-                          }
+                          onClick={() => handleSelectElementPreset(preset.id)}
                           className={`flex flex-col items-start rounded-xl border p-2.5 text-left transition-all ${
                             isActive
                               ? "border-purple-500 bg-purple-500/15 ring-2 ring-purple-500/30 text-fg"

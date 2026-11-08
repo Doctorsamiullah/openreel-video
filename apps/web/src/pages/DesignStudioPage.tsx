@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useProjectStore } from "../stores/project-store";
 import { toast } from "../stores/notification-store";
 import { useRouter } from "../hooks/use-router";
@@ -37,6 +37,64 @@ export const DesignStudioPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<LeftTabId>("templates");
   const [zoomLevel, setZoomLevel] = useState<number>(36);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+
+  // Canvas Undo / Redo History Stack
+  const [history, setHistory] = useState<DesignElement[][]>([
+    JSON.parse(JSON.stringify(MEDICAL_POSTER_TEMPLATE.elements)),
+  ]);
+  const [historyIndex, setHistoryIndex] = useState<number>(0);
+
+  const pushCanvasHistory = useCallback(
+    (newEls: DesignElement[]) => {
+      setHistory((prev) => {
+        const next = [...prev.slice(0, historyIndex + 1), JSON.parse(JSON.stringify(newEls))];
+        return next.slice(-40);
+      });
+      setHistoryIndex((prev) => Math.min(prev + 1, 39));
+    },
+    [historyIndex]
+  );
+
+  const handleUndo = useCallback(() => {
+    if (historyIndex > 0) {
+      const prev = history[historyIndex - 1];
+      setElements(JSON.parse(JSON.stringify(prev)));
+      setHistoryIndex(historyIndex - 1);
+      toast.info("Undid last action");
+    }
+  }, [history, historyIndex]);
+
+  const handleRedo = useCallback(() => {
+    if (historyIndex < history.length - 1) {
+      const next = history[historyIndex + 1];
+      setElements(JSON.parse(JSON.stringify(next)));
+      setHistoryIndex(historyIndex + 1);
+      toast.info("Redid action");
+    }
+  }, [history, historyIndex]);
+
+  // Global Keyboard Shortcuts (Ctrl+Z, Ctrl+Y, Delete)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleUndo, handleRedo]);
 
   // Canva Animation State
   const [pageAnimation, setPageAnimation] = useState<PageAnimationConfig>({
@@ -213,15 +271,20 @@ export const DesignStudioPage: React.FC = () => {
 
   // Insert image asset
   const handleInsertImage = (imgElement: DesignElement) => {
-    setElements((prev) => [...prev, imgElement]);
+    setElements((prev) => {
+      const next = [...prev, imgElement];
+      pushCanvasHistory(next);
+      return next;
+    });
     setSelectedId(imgElement.id);
   };
 
   // Update element
   const handleUpdateElement = (id: string, updates: Partial<DesignElement>) => {
-    setElements((prev) =>
-      prev.map((el) => (el.id === id ? { ...el, ...updates } : el))
-    );
+    setElements((prev) => {
+      const next = prev.map((el) => (el.id === id ? { ...el, ...updates } : el));
+      return next;
+    });
   };
 
   // Duplicate element
@@ -235,14 +298,22 @@ export const DesignStudioPage: React.FC = () => {
       y: target.y + 30,
       zIndex: Date.now(),
     };
-    setElements((prev) => [...prev, duplicated]);
+    setElements((prev) => {
+      const next = [...prev, duplicated];
+      pushCanvasHistory(next);
+      return next;
+    });
     setSelectedId(duplicated.id);
     toast.info("Duplicated layer");
   };
 
   // Delete element
   const handleDeleteElement = (id: string) => {
-    setElements((prev) => prev.filter((el) => el.id !== id));
+    setElements((prev) => {
+      const next = prev.filter((el) => el.id !== id);
+      pushCanvasHistory(next);
+      return next;
+    });
     if (selectedId === id) setSelectedId(null);
     toast.info("Deleted layer");
   };
@@ -302,6 +373,7 @@ export const DesignStudioPage: React.FC = () => {
         dimensions.height
       );
       setElements(result.elements);
+      pushCanvasHistory(result.elements);
       setCanvasBg(result.backgroundColor);
       setDocumentTitle(result.suggestedTitle);
       setSelectedId(result.elements[2]?.id || null);
@@ -353,7 +425,11 @@ export const DesignStudioPage: React.FC = () => {
           zIndex: Date.now(),
         };
 
-        setElements((prev) => [...prev, newEl]);
+        setElements((prev) => {
+          const next = [...prev, newEl];
+          pushCanvasHistory(next);
+          return next;
+        });
         setSelectedId(newEl.id);
         toast.success(`Photo "${file.name}" placed on canvas!`);
       };
@@ -365,6 +441,7 @@ export const DesignStudioPage: React.FC = () => {
   // Start blank canvas (without template)
   const handleStartBlankCanvas = () => {
     setElements([]);
+    pushCanvasHistory([]);
     setCanvasBg("#ffffff");
     setSelectedId(null);
     setDocumentTitle("Blank Custom Design");
@@ -652,6 +729,10 @@ export const DesignStudioPage: React.FC = () => {
         onDownload={handleDownloadPNG}
         onSaveToTimeline={handleSaveToTimeline}
         isProcessing={isProcessing}
+        canUndo={historyIndex > 0}
+        canRedo={historyIndex < history.length - 1}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
       />
 
       {/* ── Main Workspace Body ── */}

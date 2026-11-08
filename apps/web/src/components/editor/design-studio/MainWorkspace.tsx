@@ -750,21 +750,24 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
           />
 
           {/* Interactive Bounding Box & Handles for Selected Element */}
-          {selectedElement && (
-            <div
-              onMouseDown={handleMouseDownElement}
-              className={`absolute cursor-move border-2 ${
-                selectedElement.locked ? "border-rose-500" : "border-purple-600"
-              }`}
-              style={{
-                left: selectedElement.x * zoomFactor,
-                top: selectedElement.y * zoomFactor,
-                width: selectedElement.width * zoomFactor,
-                height: selectedElement.height * zoomFactor,
-                transform: `rotate(${selectedElement.rotation}deg)`,
-                transformOrigin: "center center",
-              }}
-            >
+          {selectedElement && (() => {
+            const selectedAnim = computeElementAnimation(selectedElement, currentTime, pageAnimation);
+            return (
+              <div
+                onMouseDown={handleMouseDownElement}
+                className={`absolute cursor-move border-2 ${
+                  selectedElement.locked ? "border-rose-500" : "border-purple-600"
+                }`}
+                style={{
+                  left: (selectedElement.x + selectedAnim.offsetX) * zoomFactor,
+                  top: (selectedElement.y + selectedAnim.offsetY) * zoomFactor,
+                  width: Math.max(20, selectedElement.width * selectedAnim.scaleX * zoomFactor),
+                  height: Math.max(15, selectedElement.height * selectedAnim.scaleY * zoomFactor),
+                  opacity: selectedAnim.opacity,
+                  transform: `rotate(${selectedElement.rotation}deg)`,
+                  transformOrigin: "center center",
+                }}
+              >
               {/* Contextual Floating Quick Action Bar */}
               <FloatingActionBar
                 element={selectedElement}
@@ -833,7 +836,8 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 </>
               )}
             </div>
-          )}
+          );
+        })()}
         </div>
       </div>
 

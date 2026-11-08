@@ -5,6 +5,8 @@ import {
   Film,
   Image as ImageIcon,
   Download,
+  Undo2,
+  Redo2,
 } from "@/icons/lucide-compat";
 import { ToolcraftButton as Button } from "@openreel/ui";
 import { DesignSizePreset, SIZE_PRESETS } from "./types";
@@ -19,6 +21,10 @@ interface DesignNavbarProps {
   onDownload: () => void;
   onSaveToTimeline: () => void;
   isProcessing: boolean;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
 }
 
 export const DesignNavbar: React.FC<DesignNavbarProps> = ({
@@ -30,6 +36,10 @@ export const DesignNavbar: React.FC<DesignNavbarProps> = ({
   onDownload,
   onSaveToTimeline,
   isProcessing,
+  canUndo = false,
+  canRedo = false,
+  onUndo,
+  onRedo,
 }) => {
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-bg-1 px-4 z-20 select-none">
@@ -64,6 +74,33 @@ export const DesignNavbar: React.FC<DesignNavbarProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Undo / Redo Controls */}
+        {(onUndo || onRedo) && (
+          <div className="flex items-center rounded-lg border border-border bg-bg-2 p-0.5 ml-2">
+            <button
+              type="button"
+              onClick={onUndo}
+              disabled={!canUndo}
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-fg hover:bg-bg-3 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              title="Undo (Ctrl+Z)"
+            >
+              <Undo2 size={13} />
+              <span className="hidden lg:inline">Undo</span>
+            </button>
+            <div className="h-3 w-px bg-border my-auto" />
+            <button
+              type="button"
+              onClick={onRedo}
+              disabled={!canRedo}
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-fg hover:bg-bg-3 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              title="Redo (Ctrl+Y)"
+            >
+              <Redo2 size={13} />
+              <span className="hidden lg:inline">Redo</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Center: Global Studio Workspace Switcher */}

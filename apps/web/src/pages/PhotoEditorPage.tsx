@@ -18,6 +18,9 @@ import {
   Sparkles,
   Upload,
   ArrowLeft,
+  Undo2,
+  Redo2,
+  Trash2,
 } from "@/icons/lucide-compat";
 import { ToolcraftButton as Button } from "@openreel/ui";
 import { useProjectStore } from "../stores/project-store";
@@ -35,6 +38,12 @@ export interface PhotoAdjustments {
   shadows: number; // -100 to 100
   vignette: number; // 0 to 100
   sharpness: number; // 0 to 100
+  hueRotate?: number; // -180 to 180 degrees
+  colorTint?: string; // hex color wash
+  colorTintIntensity?: number; // 0 to 100%
+  invert?: number; // 0 to 100%
+  grayscale?: number; // 0 to 100%
+  blur?: number; // 0 to 40 px
 }
 
 export const DEFAULT_ADJUSTMENTS: PhotoAdjustments = {
@@ -48,7 +57,22 @@ export const DEFAULT_ADJUSTMENTS: PhotoAdjustments = {
   shadows: 0,
   vignette: 0,
   sharpness: 0,
+  hueRotate: 0,
+  colorTint: "",
+  colorTintIntensity: 0,
+  invert: 0,
+  grayscale: 0,
+  blur: 0,
 };
+
+export const COLOR_WASH_PRESETS = [
+  { name: "Cyan", color: "#06b6d4" },
+  { name: "Emerald", color: "#10b981" },
+  { name: "Amber", color: "#f59e0b" },
+  { name: "Rose", color: "#f43f5e" },
+  { name: "Purple", color: "#a855f7" },
+  { name: "Indigo", color: "#6366f1" },
+];
 
 export type AspectRatioPreset = "free" | "1:1" | "4:5" | "16:9" | "9:16" | "3:2";
 
@@ -96,12 +120,90 @@ export const PhotoEditorPage: React.FC = () => {
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
+  // Undo / Redo History Stack
+  interface HistoryStep {
+    adjustments: PhotoAdjustments;
+    rotation: number;
+    flipH: boolean;
+    flipV: boolean;
+    aspectRatio: AspectRatioPreset;
+    activeFilterId: string;
+  }
+
+  const [history, setHistory] = useState<HistoryStep[]>([
+    {
+      adjustments: DEFAULT_ADJUSTMENTS,
+      rotation: 0,
+      flipH: false,
+      flipV: false,
+      aspectRatio: "free",
+      activeFilterId: "original",
+    },
+  ]);
+  const [historyIndex, setHistoryIndex] = useState<number>(0);
+
+  const pushHistory = useCallback(
+    (step: Partial<HistoryStep>) => {
+      setHistory((prev) => {
+        const current = prev[historyIndex] || {
+          adjustments,
+          rotation,
+          flipH,
+          flipV,
+          aspectRatio,
+          activeFilterId,
+        };
+        const next: HistoryStep = {
+          adjustments: step.adjustments ?? current.adjustments,
+          rotation: step.rotation ?? current.rotation,
+          flipH: step.flipH ?? current.flipH,
+          flipV: step.flipV ?? current.flipV,
+          aspectRatio: step.aspectRatio ?? current.aspectRatio,
+          activeFilterId: step.activeFilterId ?? current.activeFilterId,
+        };
+        const updated = [...prev.slice(0, historyIndex + 1), next];
+        return updated.slice(-30);
+      });
+      setHistoryIndex((prev) => Math.min(prev + 1, 29));
+    },
+    [historyIndex, adjustments, rotation, flipH, flipV, aspectRatio, activeFilterId]
+  );
+
+  const handleUndo = () => {
+    if (historyIndex > 0) {
+      const prev = history[historyIndex - 1];
+      setAdjustments(prev.adjustments);
+      setRotation(prev.rotation);
+      setFlipH(prev.flipH);
+      setFlipV(prev.flipV);
+      setAspectRatio(prev.aspectRatio);
+      setActiveFilterId(prev.activeFilterId);
+      setHistoryIndex(historyIndex - 1);
+      toast.info("Undid last change");
+    }
+  };
+
+  const handleRedo = () => {
+    if (historyIndex < history.length - 1) {
+      const next = history[historyIndex + 1];
+      setAdjustments(next.adjustments);
+      setRotation(next.rotation);
+      setFlipH(next.flipH);
+      setFlipV(next.flipV);
+      setAspectRatio(next.aspectRatio);
+      setActiveFilterId(next.activeFilterId);
+      setHistoryIndex(historyIndex + 1);
+      toast.info("Redid change");
+    }
+  };
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageElementRef = useRef<HTMLImageElement | null>(null);
 
   // Load image element
   useEffect(() => {
+    if (!imageUrl) return;
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
@@ -119,10 +221,24 @@ export const PhotoEditorPage: React.FC = () => {
   const renderCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     const img = imageElementRef.current;
-    if (!canvas || !img) return;
+    if (!canvas) return;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+
+    if (!img) {
+      // Empty canvas if photo deleted
+      canvas.width = 800;
+      canvas.height = 600;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#1e293b";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "16px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("No Photo Active. Click 'Open Image' or 'Replace Photo' to begin.", 400, 300);
+      return;
+    }
 
     let targetW = img.naturalWidth || img.width || 800;
     let targetH = img.naturalHeight || img.height || 600;
@@ -159,10 +275,34 @@ export const PhotoEditorPage: React.FC = () => {
     const c = 1 + adjustments.contrast / 100;
     const s = 1 + adjustments.saturation / 100;
     const exp = 1 + adjustments.exposure / 100;
-    ctx.filter = `brightness(${b * exp}) contrast(${c}) saturate(${s})`;
 
+    let filterStr = `brightness(${b * exp}) contrast(${c}) saturate(${s}) `;
+    if (adjustments.hueRotate) {
+      filterStr += `hue-rotate(${adjustments.hueRotate}deg) `;
+    }
+    if (adjustments.blur) {
+      filterStr += `blur(${adjustments.blur}px) `;
+    }
+    if (adjustments.invert) {
+      filterStr += `invert(${adjustments.invert}%) `;
+    }
+    if (adjustments.grayscale) {
+      filterStr += `grayscale(${adjustments.grayscale}%) `;
+    }
+
+    ctx.filter = filterStr.trim();
     ctx.drawImage(img, -targetW / 2, -targetH / 2, targetW, targetH);
     ctx.filter = "none";
+
+    // Color Wash / Tint Overlay
+    if (adjustments.colorTint && adjustments.colorTintIntensity) {
+      ctx.save();
+      ctx.globalCompositeOperation = "color";
+      ctx.fillStyle = adjustments.colorTint;
+      ctx.globalAlpha = (adjustments.colorTintIntensity / 100) * 0.75;
+      ctx.fillRect(-targetW / 2, -targetH / 2, targetW, targetH);
+      ctx.restore();
+    }
 
     // Warmth & Tint Color Balance Overlay
     if (adjustments.warmth !== 0 || adjustments.tint !== 0) {
@@ -215,7 +355,31 @@ export const PhotoEditorPage: React.FC = () => {
     setRotation(0);
     setFlipH(false);
     setFlipV(false);
+    pushHistory({
+      adjustments: DEFAULT_ADJUSTMENTS,
+      rotation: 0,
+      flipH: false,
+      flipV: false,
+      aspectRatio: "free",
+      activeFilterId: "original",
+    });
     toast.success(`Opened "${file.name}" in Photo Editor`);
+  };
+
+  const handleReplacePhoto = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleDeletePhoto = () => {
+    imageElementRef.current = null;
+    setImageUrl("");
+    setImageName("Blank Canvas");
+    setAdjustments(DEFAULT_ADJUSTMENTS);
+    setActiveFilterId("original");
+    setRotation(0);
+    setFlipH(false);
+    setFlipV(false);
+    toast.info("Photo cleared from canvas. Open or replace anytime!");
   };
 
   const handleFilterSelect = (filter: PhotoFilterPreset) => {
@@ -351,7 +515,7 @@ export const PhotoEditorPage: React.FC = () => {
         </div>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <input
             type="file"
             ref={fileInputRef}
@@ -359,6 +523,51 @@ export const PhotoEditorPage: React.FC = () => {
             accept="image/*"
             className="hidden"
           />
+
+          {/* Undo / Redo */}
+          <div className="flex items-center rounded-lg border border-border bg-bg-2 p-0.5">
+            <button
+              type="button"
+              onClick={handleUndo}
+              disabled={historyIndex <= 0}
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-fg hover:bg-bg-3 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              title="Undo Change"
+            >
+              <Undo2 size={13} />
+              <span className="hidden md:inline">Undo</span>
+            </button>
+            <div className="h-3 w-px bg-border my-auto" />
+            <button
+              type="button"
+              onClick={handleRedo}
+              disabled={historyIndex >= history.length - 1}
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-fg hover:bg-bg-3 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              title="Redo Change"
+            >
+              <Redo2 size={13} />
+              <span className="hidden md:inline">Redo</span>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleReplacePhoto}
+            className="flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold border border-border bg-bg-2 text-fg hover:bg-bg-3 transition-all"
+            title="Replace Photo Asset"
+          >
+            <RefreshCw size={13} className="text-cyan-400" />
+            <span>Replace</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleDeletePhoto}
+            className="flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold border border-rose-500/40 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-all"
+            title="Clear Photo Canvas"
+          >
+            <Trash2 size={13} />
+            <span>Delete</span>
+          </button>
 
           <Button
             label="Open Image"
@@ -581,6 +790,144 @@ export const PhotoEditorPage: React.FC = () => {
                     }
                     className="w-full h-1.5 bg-bg-3 rounded-lg appearance-none cursor-pointer accent-pink-500"
                   />
+                </div>
+
+                {/* Hue Rotate Color Shift */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs font-medium">
+                    <span className="text-fg-2">Hue Rotate (Color Shift)</span>
+                    <span className="text-fg-muted font-mono">{adjustments.hueRotate || 0}°</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="-180"
+                    max="180"
+                    value={adjustments.hueRotate || 0}
+                    onChange={(e) =>
+                      setAdjustments((prev) => ({ ...prev, hueRotate: Number(e.target.value) }))
+                    }
+                    className="w-full h-1.5 bg-gradient-to-r from-red-500 via-green-500 to-blue-500 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                  />
+                </div>
+
+                {/* Quick Color Wash Overlays */}
+                <div className="space-y-2 pt-2 border-t border-border">
+                  <span className="text-xs font-bold uppercase tracking-wider text-fg-3 block">
+                    Quick Color Wash Tint
+                  </span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {COLOR_WASH_PRESETS.map((swatch) => (
+                      <button
+                        key={swatch.color}
+                        type="button"
+                        onClick={() =>
+                          setAdjustments((prev) => ({
+                            ...prev,
+                            colorTint: swatch.color,
+                            colorTintIntensity: prev.colorTintIntensity || 45,
+                          }))
+                        }
+                        className={`h-6 w-6 rounded-full border transition-all ${
+                          adjustments.colorTint === swatch.color
+                            ? "ring-2 ring-purple-500 scale-110 border-white"
+                            : "border-border hover:scale-105"
+                        }`}
+                        style={{ backgroundColor: swatch.color }}
+                        title={swatch.name}
+                      />
+                    ))}
+                    {adjustments.colorTint && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setAdjustments((prev) => ({
+                            ...prev,
+                            colorTint: "",
+                            colorTintIntensity: 0,
+                          }))
+                        }
+                        className="text-[10px] text-fg-muted hover:text-fg underline ml-1"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+
+                  {adjustments.colorTint && (
+                    <div className="space-y-1 pt-1">
+                      <div className="flex justify-between text-xs font-medium">
+                        <span className="text-fg-2">Tint Wash Intensity</span>
+                        <span className="text-fg-muted font-mono">{adjustments.colorTintIntensity || 0}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={adjustments.colorTintIntensity || 0}
+                        onChange={(e) =>
+                          setAdjustments((prev) => ({ ...prev, colorTintIntensity: Number(e.target.value) }))
+                        }
+                        className="w-full h-1.5 bg-bg-3 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Invert, Grayscale, Blur */}
+                <div className="space-y-3 pt-2 border-t border-border">
+                  {/* Blur */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs font-medium">
+                      <span className="text-fg-2">Gaussian Blur</span>
+                      <span className="text-fg-muted font-mono">{adjustments.blur || 0}px</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="40"
+                      value={adjustments.blur || 0}
+                      onChange={(e) =>
+                        setAdjustments((prev) => ({ ...prev, blur: Number(e.target.value) }))
+                      }
+                      className="w-full h-1.5 bg-bg-3 rounded-lg appearance-none cursor-pointer accent-pink-500"
+                    />
+                  </div>
+
+                  {/* Grayscale */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs font-medium">
+                      <span className="text-fg-2">Grayscale</span>
+                      <span className="text-fg-muted font-mono">{adjustments.grayscale || 0}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={adjustments.grayscale || 0}
+                      onChange={(e) =>
+                        setAdjustments((prev) => ({ ...prev, grayscale: Number(e.target.value) }))
+                      }
+                      className="w-full h-1.5 bg-bg-3 rounded-lg appearance-none cursor-pointer accent-zinc-500"
+                    />
+                  </div>
+
+                  {/* Invert */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs font-medium">
+                      <span className="text-fg-2">Negative / Invert</span>
+                      <span className="text-fg-muted font-mono">{adjustments.invert || 0}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={adjustments.invert || 0}
+                      onChange={(e) =>
+                        setAdjustments((prev) => ({ ...prev, invert: Number(e.target.value) }))
+                      }
+                      className="w-full h-1.5 bg-bg-3 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                    />
+                  </div>
                 </div>
               </div>
             )}
