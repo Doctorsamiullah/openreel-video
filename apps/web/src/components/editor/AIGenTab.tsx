@@ -13,6 +13,9 @@ import {
   Sparkles,
   Film,
   Smartphone,
+  Image as ImageIcon,
+  LayoutTemplate,
+  Images,
 } from "@/icons/lucide-compat";
 import { ToolcraftButton as Button } from "@openreel/ui";
 import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
@@ -26,6 +29,9 @@ import { MultiCameraPanel } from "./inspector/MultiCameraPanel";
 import { AutoVideoPanel } from "./panels/AutoVideoPanel";
 import { GenerativeVideoPanel } from "./panels/GenerativeVideoPanel";
 import { ShortsMakerPanel } from "./panels/ShortsMakerPanel";
+import { PhotoToVideoPanel } from "./panels/PhotoToVideoPanel";
+import { PhotoEditorModal } from "./modals/PhotoEditorModal";
+import { DesignStudioModal } from "./modals/DesignStudioModal";
 import { useTtsAudioStore } from "../../stores/tts-store";
 import { toast } from "../../stores/notification-store";
 
@@ -33,6 +39,7 @@ type FeatureId =
   | "auto-video"
   | "generative-video"
   | "shorts"
+  | "photo-to-video"
   | "templates"
   | "captions"
   | "tts"
@@ -124,6 +131,8 @@ const FeatureSection: React.FC<FeatureSectionProps> = ({ title, icon: Icon, chil
 
 export const AIGenTab: React.FC = () => {
   const [activeFeature, setActiveFeature] = useState<FeatureId>(null);
+  const [isPhotoEditorOpen, setIsPhotoEditorOpen] = useState(false);
+  const [isDesignStudioOpen, setIsDesignStudioOpen] = useState(false);
   const ttsHasUnsaved = useTtsAudioStore((s) => s.generatedAudio !== null && !s.isAudioSaved);
 
   const navigateAway = useCallback((next: FeatureId) => {
@@ -145,6 +154,8 @@ export const AIGenTab: React.FC = () => {
         return <GenerativeVideoPanel />;
       case "shorts":
         return <ShortsMakerPanel />;
+      case "photo-to-video":
+        return <PhotoToVideoPanel />;
       case "templates":
         return <TemplatesBrowserPanel />;
       case "captions":
@@ -232,6 +243,18 @@ export const AIGenTab: React.FC = () => {
             onClick={() => handleFeatureClick("shorts")}
           />
           <FeatureCard
+            icon={Images}
+            title="Photo ➔ Video (Slideshows)"
+            description="Multi-photo sequences, Ken Burns pan/zoom, and blurred padding"
+            iconColor="text-emerald-400"
+            iconBg="bg-emerald-500/20"
+            activeBorder="border-emerald-500/50"
+            activeBg="bg-emerald-500/10"
+            activeRing="ring-emerald-500/30"
+            isActive={activeFeature === "photo-to-video"}
+            onClick={() => handleFeatureClick("photo-to-video")}
+          />
+          <FeatureCard
             icon={Mic}
             title="Text to Speech"
             description="Generate natural voiceovers from text"
@@ -254,6 +277,33 @@ export const AIGenTab: React.FC = () => {
             activeRing="ring-primary/30"
             isActive={activeFeature === "captions"}
             onClick={() => handleFeatureClick("captions")}
+          />
+        </FeatureSection>
+
+        <FeatureSection title="Graphic Design & Photos" icon={LayoutTemplate}>
+          <FeatureCard
+            icon={LayoutTemplate}
+            title="Design Studio (Canva Clone)"
+            description="Templates, social posts, flyers, stickers & 1-click timeline sync"
+            iconColor="text-purple-400"
+            iconBg="bg-purple-500/20"
+            activeBorder="border-purple-500/50"
+            activeBg="bg-purple-500/10"
+            activeRing="ring-purple-500/30"
+            isActive={false}
+            onClick={() => setIsDesignStudioOpen(true)}
+          />
+          <FeatureCard
+            icon={ImageIcon}
+            title="Integrated Photo Editor"
+            description="Non-destructive retouching, color grading, crop/rotate & filters"
+            iconColor="text-pink-400"
+            iconBg="bg-pink-500/20"
+            activeBorder="border-pink-500/50"
+            activeBg="bg-pink-500/10"
+            activeRing="ring-pink-500/30"
+            isActive={false}
+            onClick={() => setIsPhotoEditorOpen(true)}
           />
         </FeatureSection>
 
@@ -320,6 +370,18 @@ export const AIGenTab: React.FC = () => {
           </Text>
         </div>
       </div>
+
+      {/* Integrated Photo Editor Modal */}
+      <PhotoEditorModal
+        isOpen={isPhotoEditorOpen}
+        onClose={() => setIsPhotoEditorOpen(false)}
+      />
+
+      {/* Canva-Grade Design Studio Modal */}
+      <DesignStudioModal
+        isOpen={isDesignStudioOpen}
+        onClose={() => setIsDesignStudioOpen(false)}
+      />
     </div>
   );
 };

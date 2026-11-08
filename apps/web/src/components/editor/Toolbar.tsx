@@ -5,7 +5,11 @@ import {
   MoreHorizontal,
   Video,
   BookOpen,
+  LayoutTemplate,
+  Image as ImageIcon,
 } from "@/icons/lucide-compat";
+import { PhotoEditorModal } from "./modals/PhotoEditorModal";
+import { DesignStudioModal } from "./modals/DesignStudioModal";
 import { useSettingsStore } from "../../stores/settings-store";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
@@ -67,6 +71,8 @@ export const Toolbar: React.FC = () => {
   }, []);
   const aiMode = useUIStore((s) => s.panels.agentChat?.visible ?? false);
   const [isCompressOpen, setIsCompressOpen] = useState(false);
+  const [isPhotoEditorOpen, setIsPhotoEditorOpen] = useState(false);
+  const [isDesignStudioOpen, setIsDesignStudioOpen] = useState(false);
   const importMedia = useProjectStore((state) => state.importMedia);
   const sourceMatch = useMemo(() => deriveSourceExportMatch(project), [project]);
   const hasTimelineContent = (project.timeline?.duration ?? 0) > 0;
@@ -426,6 +432,28 @@ export const Toolbar: React.FC = () => {
 
       {/* ─── Right: export only ───────────────────────────────── */}
       <div className="flex items-center justify-end shrink-0">
+        {/* Photo Editor Launcher */}
+        <button
+          type="button"
+          onClick={() => setIsPhotoEditorOpen(true)}
+          className="flex items-center gap-1.5 rounded-[8px] border border-border bg-bg-2 hover:bg-bg-3 px-3 py-[9px] text-[13px] font-medium text-pink-400 hover:text-pink-300 transition-colors mr-2 shadow-sm"
+          title="Open Integrated Photo Editor"
+        >
+          <ImageIcon size={15} className="text-pink-400" aria-hidden />
+          <span className="font-semibold text-xs">Photo Editor</span>
+        </button>
+
+        {/* Canva Design Studio Launcher */}
+        <button
+          type="button"
+          onClick={() => setIsDesignStudioOpen(true)}
+          className="flex items-center gap-1.5 rounded-[8px] border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 px-3 py-[9px] text-[13px] font-medium text-purple-300 hover:text-purple-200 transition-colors mr-2 shadow-sm"
+          title="Open Canva-Grade Graphic Design Studio"
+        >
+          <LayoutTemplate size={15} className="text-purple-400" aria-hidden />
+          <span className="font-semibold text-xs">Design Studio</span>
+        </button>
+
         {/* Help button (Hindi Guide) */}
         <button
           type="button"
@@ -629,6 +657,18 @@ export const Toolbar: React.FC = () => {
           </div>
         </>
       )}
+
+      {/* Integrated Photo Editor Modal */}
+      <PhotoEditorModal
+        isOpen={isPhotoEditorOpen}
+        onClose={() => setIsPhotoEditorOpen(false)}
+      />
+
+      {/* Canva-Grade Design Studio Modal */}
+      <DesignStudioModal
+        isOpen={isDesignStudioOpen}
+        onClose={() => setIsDesignStudioOpen(false)}
+      />
     </header>
   );
 };
