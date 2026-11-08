@@ -3,7 +3,7 @@ import {
   Image as ImageIcon, Film, Music, Plus, Upload, Trash2,
   Square, Circle, Triangle, Star, ArrowRight, Hexagon, FileCode, AlertTriangle,
   RefreshCw, Palette, Sparkles, Video,
-  Type, Shapes, Wand2, LayoutTemplate, Zap, Shuffle,
+  Type, Shapes, Wand2, LayoutTemplate, Zap, Shuffle, Globe,
 } from "@/icons/lucide-compat";
 import {
   BACKGROUND_PRESETS,
@@ -19,6 +19,7 @@ import { AspectRatioMatchDialog } from "./dialogs/AspectRatioMatchDialog";
 import { AIGenTab } from "./AIGenTab";
 import { RecipesTab } from "./panels/RecipesTab";
 import { TemplatesTab } from "./panels/TemplatesTab";
+import { OnlineEffectsPanel } from "./panels/OnlineEffectsPanel";
 import {
   EffectsPanel,
   TransitionsPanel,
@@ -53,6 +54,7 @@ type MediaViewMode = "large" | "small" | "list";
 type AssetsTab =
   | "media"
   | "text"
+  | "online-effects"
   | "graphics"
   | "effects"
   | "transitions"
@@ -74,6 +76,11 @@ const ASSETS_TABS: ReadonlyArray<{
     value: "text",
     label: "Text",
     description: "Add title presets and caption elements.",
+  },
+  {
+    value: "online-effects",
+    label: "Online Effects",
+    description: "Editable kinetic text, lower thirds, and motion graphics.",
   },
   {
     value: "graphics",
@@ -194,6 +201,7 @@ export const TEXT_STYLE_PRESETS: ReadonlyArray<{
 const TAB_ICONS: Record<AssetsTab, React.ElementType> = {
   media: Video,
   text: Type,
+  "online-effects": Globe,
   graphics: Shapes,
   effects: Zap,
   transitions: Shuffle,
@@ -1486,6 +1494,12 @@ export const AssetsPanel: React.FC = () => {
                 </div>
               </div>
             </div>
+          </div>
+        );
+      case "online-effects":
+        return (
+          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-bg-1">
+            <OnlineEffectsPanel />
           </div>
         );
       case "effects":
