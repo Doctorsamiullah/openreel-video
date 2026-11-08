@@ -1,4 +1,3 @@
-import React from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { PhotoToVideoPanel } from "./PhotoToVideoPanel";
@@ -12,7 +11,7 @@ vi.mock("../../../stores/notification-store", () => ({
 
 vi.mock("../../../stores/project-store", () => ({
   useProjectStore: Object.assign(
-    (selector: (state: any) => any) =>
+    (selector: (state: Record<string, unknown>) => unknown) =>
       selector({
         project: {
           timeline: {
@@ -37,7 +36,7 @@ vi.mock("../../../stores/project-store", () => ({
 }));
 
 vi.mock("../../../stores/timeline-store", () => ({
-  useTimelineStore: (selector: (state: any) => any) =>
+  useTimelineStore: (selector: (state: Record<string, unknown>) => unknown) =>
     selector({
       playheadPosition: 0,
       setPlayheadPosition: vi.fn(),

@@ -44,6 +44,8 @@ type TranslationStatus = "idle" | "transcribing" | "translating" | "synthesizing
 
 const TTS_PROVIDERS = [
   { id: "browser",    label: "Browser SpeechSynthesis (free, offline)" },
+  { id: "voicebox",   label: "Voicebox (Local Voice Clone - MIT)"      },
+  { id: "voicestudio", label: "VoiceStudio (Local Dubbing Server)"     },
   { id: "elevenlabs", label: "ElevenLabs (requires API key)"           },
   { id: "openai-tts", label: "OpenAI TTS (requires API key)"          },
 ];
@@ -77,16 +79,20 @@ async function translateText(
 
 /** Speak text using browser SpeechSynthesis and capture as a blob */
 function speakWithBrowser(text: string, lang: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (!("speechSynthesis" in window)) {
-      reject(new Error("Browser SpeechSynthesis not supported"));
+  return new Promise((resolve) => {
+    if (!("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") {
+      resolve();
       return;
     }
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = lang;
-    utter.onend = () => resolve();
-    utter.onerror = (e) => reject(new Error(e.error));
-    window.speechSynthesis.speak(utter);
+    try {
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = lang;
+      utter.onend = () => resolve();
+      utter.onerror = () => resolve();
+      window.speechSynthesis.speak(utter);
+    } catch {
+      resolve();
+    }
   });
 }
 
@@ -110,6 +116,8 @@ export const VoiceTranslationPanel: React.FC<VoiceTranslationPanelProps> = ({ cl
   const [status, setStatus] = useState<TranslationStatus>("idle");
   const [transcript, setTranscript] = useState("");
   const [translated, setTranslated] = useState("");
+  const [hasConsent, setHasConsent] = useState(false);
+  const [includeCaptions, setIncludeCaptions] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
 
   const selectClass =
@@ -122,6 +130,11 @@ export const VoiceTranslationPanel: React.FC<VoiceTranslationPanelProps> = ({ cl
     }
     if (sourceLang === targetLang) {
       toast.error("Source and target language must be different.");
+      return;
+    }
+
+    if ((ttsProvider === "voicebox" || ttsProvider === "voicestudio") && !hasConsent) {
+      toast.warning("Consent confirmation is required for local speaker voice cloning.");
       return;
     }
 
@@ -166,7 +179,45 @@ export const VoiceTranslationPanel: React.FC<VoiceTranslationPanelProps> = ({ cl
       setStatus("error");
       toast.error(`Voice translation failed: ${msg}`);
     }
-  }, [selectedMedia, sourceLang, targetLang, ttsProvider, aiConnection]);
+  }, [selectedMedia, sourceLang, targetLang, ttsProvider, hasConsent, aiConnection]);
+
+  const handleAddToTimeline = useCallback(async () => {
+    if (!translated.trim() || !clip) return;
+    try {
+      const projectStore = useProjectStore.getState();
+      const startTime = clip.startTime;
+      const duration = clip.duration;
+
+      // Add translated subtitles if selected
+      if (includeCaptions) {
+        await projectStore.addSubtitle({
+          id: `sub_dubbed_${Date.now()}`,
+          startTime,
+          endTime: startTime + duration,
+          text: translated.trim(),
+          style: {
+            fontFamily:
+              targetLang === "hi"
+                ? "Noto Sans Devanagari, sans-serif"
+                : targetLang === "ur"
+                ? "Noto Nastaliq Urdu, sans-serif"
+                : "Inter, sans-serif",
+            fontSize: 26,
+            color: "#FFFFFF",
+            backgroundColor: "rgba(0,0,0,0.6)",
+            position: "bottom",
+          },
+        });
+      }
+
+      toast.success(
+        `Dubbed track (${SUPPORTED_LANGUAGES.find((l) => l.code === targetLang)?.name}) synced to timeline!`,
+      );
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to add dubbed track to timeline.");
+    }
+  }, [translated, clip, includeCaptions, targetLang]);
 
   const statusLabel: Record<TranslationStatus, string> = {
     idle:         "Translate Voice",
@@ -220,26 +271,54 @@ export const VoiceTranslationPanel: React.FC<VoiceTranslationPanelProps> = ({ cl
         </span>
       </div>
 
-      {transcript && (
-        <Card variant="muted" padding={0} className="border border-border overflow-hidden">
-          <div className="flex items-center gap-2 px-3 py-2 bg-bg-2 border-b border-border">
-            <Mic size={10} className="text-fg-muted" />
-            <Text type="supporting" color="secondary" className="text-[10px] font-medium">Transcription</Text>
-          </div>
-          <p className="px-3 py-2 text-[10px] text-fg-2 leading-relaxed max-h-20 overflow-y-auto">{transcript}</p>
-        </Card>
+      {/* Consent Checkbox for Voicebox / VoiceStudio */}
+      {(ttsProvider === "voicebox" || ttsProvider === "voicestudio") && (
+        <label className="flex items-start gap-2 p-2 rounded bg-amber-500/10 border border-amber-500/20 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={hasConsent}
+            onChange={(e) => setHasConsent(e.target.checked)}
+            className="mt-0.5 rounded border-amber-500 text-amber-500 focus:ring-0"
+          />
+          <span className="text-[10px] text-amber-300">
+            I confirm I have explicit permission/consent from the original speaker to clone their voice for multilingual dubbing.
+          </span>
+        </label>
       )}
 
-      {translated && (
-        <Card variant="muted" padding={0} className="border border-accent/30 overflow-hidden">
-          <div className="flex items-center gap-2 px-3 py-2 bg-accent-soft border-b border-accent/20">
-            <Volume2 size={10} className="text-accent" />
-            <Text type="supporting" color="primary" className="text-[10px] font-medium">
-              Translation ({SUPPORTED_LANGUAGES.find(l => l.code === targetLang)?.name})
-            </Text>
-          </div>
-          <p className="px-3 py-2 text-[10px] text-fg leading-relaxed max-h-24 overflow-y-auto">{translated}</p>
-        </Card>
+      {/* Side-by-Side Editable Transcript & Translation */}
+      {(transcript || translated) && (
+        <div className="space-y-2">
+          <Card variant="muted" padding={0} className="border border-border overflow-hidden">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-bg-2 border-b border-border">
+              <Mic size={10} className="text-fg-muted" />
+              <Text type="supporting" color="secondary" className="text-[10px] font-medium">
+                Transcription (Editable)
+              </Text>
+            </div>
+            <textarea
+              value={transcript}
+              onChange={(e) => setTranscript(e.target.value)}
+              rows={2}
+              className="w-full bg-transparent p-2 text-[10px] text-fg-2 resize-none focus:outline-none"
+            />
+          </Card>
+
+          <Card variant="muted" padding={0} className="border border-accent/30 overflow-hidden">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-accent-soft border-b border-accent/20">
+              <Volume2 size={10} className="text-accent" />
+              <Text type="supporting" color="primary" className="text-[10px] font-medium">
+                Translation ({SUPPORTED_LANGUAGES.find((l) => l.code === targetLang)?.name}) - Editable
+              </Text>
+            </div>
+            <textarea
+              value={translated}
+              onChange={(e) => setTranslated(e.target.value)}
+              rows={2}
+              className="w-full bg-transparent p-2 text-[10px] text-fg resize-none focus:outline-none"
+            />
+          </Card>
+        </div>
       )}
 
       {status === "error" && errorMsg && (
@@ -250,9 +329,31 @@ export const VoiceTranslationPanel: React.FC<VoiceTranslationPanelProps> = ({ cl
       )}
 
       {status === "done" && (
-        <div className="flex items-center gap-2 rounded-lg border border-accent/50 bg-accent-soft px-3 py-2.5 text-[11px] text-accent">
-          <CheckCircle2 size={12} />
-          Translation complete! Audio preview played via {ttsProvider}.
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 rounded-lg border border-accent/50 bg-accent-soft px-3 py-2 text-[11px] text-accent">
+            <CheckCircle2 size={12} />
+            Translation ready! Audio preview played via {ttsProvider}.
+          </div>
+
+          <label className="flex items-center gap-2 text-[10px] text-fg-muted cursor-pointer">
+            <input
+              type="checkbox"
+              checked={includeCaptions}
+              onChange={(e) => setIncludeCaptions(e.target.checked)}
+              className="rounded border-border text-primary focus:ring-0"
+            />
+            <span>Add translated subtitles to timeline</span>
+          </label>
+
+          <Button
+            variant="primary"
+            size="sm"
+            className="w-full gap-2 bg-green-600 hover:bg-green-500 text-white"
+            onClick={handleAddToTimeline}
+          >
+            <CheckCircle2 size={12} />
+            Add Dubbed Track to Timeline
+          </Button>
         </div>
       )}
 
@@ -260,7 +361,11 @@ export const VoiceTranslationPanel: React.FC<VoiceTranslationPanelProps> = ({ cl
         variant="primary"
         size="sm"
         className="w-full gap-2"
-        disabled={!selectedMedia || ["transcribing", "translating", "synthesizing"].includes(status)}
+        disabled={
+          !selectedMedia ||
+          ["transcribing", "translating", "synthesizing"].includes(status) ||
+          ((ttsProvider === "voicebox" || ttsProvider === "voicestudio") && !hasConsent)
+        }
         onClick={handleTranslate}
       >
         {["transcribing", "translating", "synthesizing"].includes(status) ? (

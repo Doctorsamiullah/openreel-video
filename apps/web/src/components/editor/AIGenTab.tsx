@@ -10,6 +10,9 @@ import {
   Wand2,
   FileStack,
   Volume2,
+  Sparkles,
+  Film,
+  Smartphone,
 } from "@/icons/lucide-compat";
 import { ToolcraftButton as Button } from "@openreel/ui";
 import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
@@ -20,10 +23,23 @@ import { FilterPresetsPanel } from "./inspector/FilterPresetsPanel";
 import { MusicLibraryPanel } from "./inspector/MusicLibraryPanel";
 import { TemplatesBrowserPanel } from "./inspector/TemplatesBrowserPanel";
 import { MultiCameraPanel } from "./inspector/MultiCameraPanel";
+import { AutoVideoPanel } from "./panels/AutoVideoPanel";
+import { GenerativeVideoPanel } from "./panels/GenerativeVideoPanel";
+import { ShortsMakerPanel } from "./panels/ShortsMakerPanel";
 import { useTtsAudioStore } from "../../stores/tts-store";
 import { toast } from "../../stores/notification-store";
 
-type FeatureId = "templates" | "captions" | "tts" | "filters" | "music" | "multicam" | null;
+type FeatureId =
+  | "auto-video"
+  | "generative-video"
+  | "shorts"
+  | "templates"
+  | "captions"
+  | "tts"
+  | "filters"
+  | "music"
+  | "multicam"
+  | null;
 
 interface FeatureCardProps {
   icon: React.ElementType;
@@ -123,6 +139,12 @@ export const AIGenTab: React.FC = () => {
 
   const renderActivePanel = () => {
     switch (activeFeature) {
+      case "auto-video":
+        return <AutoVideoPanel />;
+      case "generative-video":
+        return <GenerativeVideoPanel />;
+      case "shorts":
+        return <ShortsMakerPanel />;
       case "templates":
         return <TemplatesBrowserPanel />;
       case "captions":
@@ -173,6 +195,42 @@ export const AIGenTab: React.FC = () => {
         </div>
 
         <FeatureSection title="Content Generation" icon={Wand2}>
+          <FeatureCard
+            icon={Film}
+            title="AI Video Generation"
+            description="Create 4-second video clips (Wan 2.2 / LTX-2) or animate photos"
+            iconColor="text-purple-400"
+            iconBg="bg-purple-500/20"
+            activeBorder="border-purple-500/50"
+            activeBg="bg-purple-500/10"
+            activeRing="ring-purple-500/30"
+            isActive={activeFeature === "generative-video"}
+            onClick={() => handleFeatureClick("generative-video")}
+          />
+          <FeatureCard
+            icon={Sparkles}
+            title="Auto Video (Idea ➔ Timeline)"
+            description="Transform an idea into full scenes, stock B-roll, and captions"
+            iconColor="text-amber-400"
+            iconBg="bg-amber-500/20"
+            activeBorder="border-amber-500/50"
+            activeBg="bg-amber-500/10"
+            activeRing="ring-amber-500/30"
+            isActive={activeFeature === "auto-video"}
+            onClick={() => handleFeatureClick("auto-video")}
+          />
+          <FeatureCard
+            icon={Smartphone}
+            title="Shorts Maker & 9:16 Reframe"
+            description="Auto-detect hooks, 9:16 vertical reframe & OTIO/FCPXML interchange"
+            iconColor="text-pink-400"
+            iconBg="bg-pink-500/20"
+            activeBorder="border-pink-500/50"
+            activeBg="bg-pink-500/10"
+            activeRing="ring-pink-500/30"
+            isActive={activeFeature === "shorts"}
+            onClick={() => handleFeatureClick("shorts")}
+          />
           <FeatureCard
             icon={Mic}
             title="Text to Speech"

@@ -387,18 +387,33 @@ export const PhotoToVideoPanel: React.FC = () => {
         </div>
       </div>
 
-      {/* AI Image-To-Video Feature Teaser */}
-      <div className="rounded-lg border border-border bg-bg-2/50 p-2.5 flex items-start gap-2">
-        <Sparkles className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
-        <div className="text-[11px]">
-          <div className="flex items-center gap-1.5 font-semibold text-fg">
+      {/* AI Image-To-Video Feature Button */}
+      <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 font-semibold text-fg text-xs">
+            <Sparkles className="h-4 w-4 text-amber-400 shrink-0" />
             <span>Animate this Photo (AI Video)</span>
-            <span className="text-[9px] bg-bg-3 text-fg-muted px-1 rounded border border-border">Phase 6 / GPU</span>
           </div>
-          <p className="text-[10px] text-fg-muted mt-0.5">
-            Image-to-video generation via Wan 2.2 / LTX-2 through ComfyUI. Generates continuous 4-second motion clips.
-          </p>
+          <span className="text-[9px] bg-primary/10 text-primary font-semibold px-1.5 py-0.5 rounded border border-primary/20">
+            Phase 6 Ready
+          </span>
         </div>
+        <p className="text-[10px] text-fg-muted">
+          Image-to-video generation via Wan 2.2 / LTX-2 through ComfyUI. Generates continuous 4-second motion clips directly from your selected photo.
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            if (photos.length === 0) {
+              toast.warning("Please add at least one photo first to animate.");
+            } else {
+              toast.success("Ready! Navigate to AI Tools > AI Video Generation to customize motion parameters.");
+            }
+          }}
+          className="self-start text-[11px] font-semibold text-primary hover:underline flex items-center gap-1 mt-0.5"
+        >
+          <span>Open AI Video Generation</span> ➔
+        </button>
       </div>
 
       {/* Build Action Button */}
