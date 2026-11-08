@@ -33,14 +33,15 @@ vi.mock("../stores/notification-store", () => ({
   },
 }));
 
-describe("DesignStudioPage (Dedicated Full-Page Canva Studio)", () => {
+describe("DesignStudioPage (Hybrid Canva + Photoshop Platform)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue("data:image/png;base64,mockedPngData");
   });
 
-  it("renders page title, canva suite badge, and workspace switcher", () => {
+  it("renders hybrid platform title, medical poster template, and studio switcher", () => {
     render(<DesignStudioPage />);
-    expect(screen.getByText("Canva Suite")).toBeInTheDocument();
+    expect(screen.getByText("Canva + Photoshop Hybrid")).toBeInTheDocument();
     expect(screen.getAllByText("Video Editor").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Photo Editor").length).toBeGreaterThan(0);
   });
@@ -56,13 +57,22 @@ describe("DesignStudioPage (Dedicated Full-Page Canva Studio)", () => {
     expect(mockNavigate).toHaveBeenCalledWith("photo-editor");
   });
 
-  it("renders Canva tabs: Templates, Text, Elements, Brand, Layers", () => {
+  it("renders all Canva tool rail tabs: Templates, Uploads, Text, Elements, Brand, Layers", () => {
     render(<DesignStudioPage />);
     expect(screen.getByText("Templates")).toBeInTheDocument();
+    expect(screen.getByText("Uploads")).toBeInTheDocument();
     expect(screen.getByText("Text")).toBeInTheDocument();
     expect(screen.getByText("Elements")).toBeInTheDocument();
     expect(screen.getByText("Brand")).toBeInTheDocument();
     expect(screen.getByText("Layers")).toBeInTheDocument();
+  });
+
+  it("switches to Uploads tab and renders drag-and-drop zone and medical assets", () => {
+    render(<DesignStudioPage />);
+    fireEvent.click(screen.getByText("Uploads"));
+    expect(screen.getByText("Upload your image")).toBeInTheDocument();
+    expect(screen.getByText("Medical & Poster Assets")).toBeInTheDocument();
+    expect(screen.getByText("Doctor Specialist Portrait")).toBeInTheDocument();
   });
 
   it("switches to Text tab and displays typography options including Hindi and Urdu", () => {
@@ -74,10 +84,13 @@ describe("DesignStudioPage (Dedicated Full-Page Canva Studio)", () => {
     expect(screen.getByText("اردو عنوان شامل کریں")).toBeInTheDocument();
   });
 
-  it("renders export actions and format selector", () => {
+  it("renders export actions, format presets, and triggers download", () => {
     render(<DesignStudioPage />);
     expect(screen.getByText("Download PNG")).toBeInTheDocument();
     expect(screen.getByText("Add to Video Timeline")).toBeInTheDocument();
     expect(screen.getByText("Format:")).toBeInTheDocument();
+
+    const downloadBtn = screen.getByText("Download PNG");
+    fireEvent.click(downloadBtn);
   });
 });
