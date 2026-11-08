@@ -458,30 +458,8 @@ export const Toolbar: React.FC = () => {
         <ProjectSwitcher />
       </div>
 
-      {/* ─── Right: export only ───────────────────────────────── */}
+      {/* ─── Right: actions & export ──────────────────────────── */}
       <div className="flex items-center justify-end shrink-0">
-        {/* Photo Editor Launcher */}
-        <button
-          type="button"
-          onClick={() => navigate("photo-editor")}
-          className="flex items-center gap-1.5 rounded-[8px] border border-border bg-bg-2 hover:bg-bg-3 px-3 py-[9px] text-[13px] font-medium text-pink-400 hover:text-pink-300 transition-colors mr-2 shadow-sm"
-          title="Open Dedicated Full-Page Photo Editor"
-        >
-          <ImageIcon size={15} className="text-pink-400" aria-hidden />
-          <span className="font-semibold text-xs">Photo Editor</span>
-        </button>
-
-        {/* Canva Design Studio Launcher */}
-        <button
-          type="button"
-          onClick={() => navigate("design-studio")}
-          className="flex items-center gap-1.5 rounded-[8px] border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 px-3 py-[9px] text-[13px] font-medium text-purple-300 hover:text-purple-200 transition-colors mr-2 shadow-sm"
-          title="Open Dedicated Full-Page Canva Graphic Design Studio"
-        >
-          <LayoutTemplate size={15} className="text-purple-400" aria-hidden />
-          <span className="font-semibold text-xs">Design Studio</span>
-        </button>
-
         {/* Help button (Hindi Guide) */}
         <button
           type="button"

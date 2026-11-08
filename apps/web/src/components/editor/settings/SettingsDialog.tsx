@@ -1,5 +1,5 @@
 import React, { useCallback } from "react";
-import { Settings, Key, Plug, Bot, BookOpen } from "@/icons/lucide-compat";
+import { Settings, Key, Plug, Bot, BookOpen, Palette } from "@/icons/lucide-compat";
 import { Tabs, TabsList, TabsTrigger } from "@openreel/ui";
 import { ToolcraftDialog as Dialog, ToolcraftDialogHeader as DialogHeader } from "@openreel/ui";
 import { ToolcraftLayout as Layout, ToolcraftLayoutContent as LayoutContent } from "@openreel/ui";
@@ -9,12 +9,14 @@ import { ApiKeysPanel } from "./ApiKeysPanel";
 import { McpPanel } from "./McpPanel";
 import { AISettingsPanel } from "./AISettingsPanel";
 import { HelpGuidePanel } from "./HelpGuidePanel";
+import { ThemePickerPanel } from "./ThemePickerPanel";
 
 const isDesktop =
   typeof window !== "undefined" && window.openreel?.platform === "desktop";
 
 const TABS: readonly { id: SettingsTab; label: string; icon: typeof Settings }[] = [
   { id: "general", label: "General", icon: Settings },
+  { id: "appearance", label: "Appearance", icon: Palette },
   { id: "ai-editor", label: "AI Editor", icon: Bot },
   { id: "api-keys", label: "API Keys", icon: Key },
   ...(isDesktop
@@ -88,6 +90,7 @@ export const SettingsDialog: React.FC = () => {
               className="mt-4"
             >
               {settingsTab === "general" && <GeneralPanel />}
+              {settingsTab === "appearance" && <ThemePickerPanel />}
               {settingsTab === "ai-editor" && <AISettingsPanel />}
               {settingsTab === "api-keys" && <ApiKeysPanel />}
               {settingsTab === "mcp" && <McpPanel />}

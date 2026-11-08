@@ -27,12 +27,13 @@ const ChatPanel = React.lazy(() =>
 // Timeline area (bottom band) is sized as a vh fraction so the
 // top workspace (media | stage | inspector) gets the rest. The grid
 // from the mockup is `1fr var(--tl-height)` rows — by default
-// timeline is 58vh which leaves the top row with ~38–42vh of stage.
-const DEFAULT_TIMELINE_VH = 42;
-const MIN_TIMELINE_VH = 22;
-const MAX_TIMELINE_VH = 70;
-// Compact mode: timeline takes most of the height, leaving a small preview.
-const COMPACT_TIMELINE_VH = 80;
+// Balanced default: top row (stage, media, inspector) has plenty of room (~55-60vh),
+// leaving 32–38vh for timeline.
+const DEFAULT_TIMELINE_VH = 34;
+const MIN_TIMELINE_VH = 20;
+const MAX_TIMELINE_VH = 50;
+// Compact/maximized mode: timeline expands up to 50vh, NEVER squishing the video player.
+const COMPACT_TIMELINE_VH = 48;
 
 const DEFAULT_MEDIA_W = 460;
 const MIN_MEDIA_W = 320;
@@ -341,17 +342,17 @@ export const EditorInterface: React.FC = () => {
     ? COMPACT_TIMELINE_VH
     : timelineVh;
   const gridStyle: React.CSSProperties = compact
-    ? { gridTemplateColumns: "minmax(0, 1fr)", gridTemplateRows: "minmax(220px, 48%) minmax(0, 1fr)", gridTemplateAreas: `'stage' '${compactPanel}'` }
+    ? { gridTemplateColumns: "minmax(0, 1fr)", gridTemplateRows: "minmax(260px, 50%) minmax(0, 1fr)", gridTemplateAreas: `'stage' '${compactPanel}'` }
     : chatVisible
     ? {
-        gridTemplateColumns: `${mediaWidth}px ${RESIZE_HANDLE}px minmax(0, 1fr) ${RESIZE_HANDLE}px ${chatWidth}px`,
-        gridTemplateRows: `1fr ${RESIZE_HANDLE}px ${effectiveTimelineVh}vh`,
+        gridTemplateColumns: `${mediaWidth}px ${RESIZE_HANDLE}px minmax(360px, 1fr) ${RESIZE_HANDLE}px ${chatWidth}px`,
+        gridTemplateRows: `minmax(280px, 1fr) ${RESIZE_HANDLE}px minmax(160px, ${effectiveTimelineVh}vh)`,
         gridTemplateAreas:
           "'media mh stage ch chat' 'th th th th th' 'timeline timeline timeline timeline timeline'",
       }
     : {
-        gridTemplateColumns: `${mediaWidth}px ${RESIZE_HANDLE}px 1fr ${RESIZE_HANDLE}px ${inspectorWidth}px`,
-        gridTemplateRows: `1fr ${RESIZE_HANDLE}px ${effectiveTimelineVh}vh`,
+        gridTemplateColumns: `${mediaWidth}px ${RESIZE_HANDLE}px minmax(360px, 1fr) ${RESIZE_HANDLE}px ${inspectorWidth}px`,
+        gridTemplateRows: `minmax(280px, 1fr) ${RESIZE_HANDLE}px minmax(160px, ${effectiveTimelineVh}vh)`,
         gridTemplateAreas:
           "'media mh stage ih inspector' 'th th th th th' 'timeline timeline timeline timeline timeline'",
       };
@@ -396,7 +397,7 @@ export const EditorInterface: React.FC = () => {
         </div>
 
         <div
-          className="editor-stage bg-stage-bg min-w-0 min-h-0 overflow-hidden rounded-xl border border-border shadow-sm"
+          className="editor-stage bg-stage-bg min-w-0 min-h-[260px] overflow-hidden rounded-xl border border-border shadow-sm flex flex-col"
           style={{ gridArea: "stage" }}
         >
           <PanelErrorBoundary name="Stage">

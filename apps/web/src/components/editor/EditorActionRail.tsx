@@ -17,6 +17,7 @@ import {
   HelpCircle,
   FileCode,
   Command,
+  Palette,
 } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
@@ -145,13 +146,17 @@ export const EditorActionRail: React.FC = () => {
 
       <div className="flex-1" />
 
-      <Tooltip content={themeActionLabel} placement="end">
+      <Tooltip content={`${themeActionLabel} (Right-click for Appearance & Gradients)`} placement="end">
         <IconButton
           label={themeActionLabel}
           icon={themeIcon}
           size="sm"
           variant="secondary"
           onClick={toggleTheme}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            openSettings("appearance");
+          }}
         />
       </Tooltip>
 
@@ -177,6 +182,11 @@ export const EditorActionRail: React.FC = () => {
         hasChevron={false}
         menuWidth={224}
         items={[
+          {
+            label: "Appearance & Themes",
+            icon: <Palette size={14} className="text-accent" aria-hidden />,
+            onClick: () => openSettings("appearance"),
+          },
           {
             label: "Settings & API keys",
             icon: <Settings size={14} aria-hidden />,
